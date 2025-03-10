@@ -29,9 +29,13 @@ export const CartProvider = ({ children }) => {
         description: product.description,
         weight: product.selectedVariant?.weight || null,
         size: product.selectedVariant?.size || null,
-        stockQuantity: product.selectedVariant ? 
-          product.selectedVariant.stockQuantity : 
-          product.stockQuantity
+        stockQuantity: product.selectedVariant ?
+          product.selectedVariant.stockQuantity :
+          product.stockQuantity,
+        // Add vendor information
+        vendorId: product.vendorId,
+        vendorName: product.vendorName,
+        vendorSlug: product.vendorSlug
       }
     }));
   };
@@ -93,10 +97,10 @@ export const CartProvider = ({ children }) => {
   };
 
   return (
-    <CartContext.Provider value={{ 
-      cartItems, 
-      addToCart, 
-      updateQuantity, 
+    <CartContext.Provider value={{
+      cartItems,
+      addToCart,
+      updateQuantity,
       removeFromCart,
       clearCart,
       getCartTotal,

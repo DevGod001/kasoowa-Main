@@ -1,4 +1,3 @@
-// src/components/shared/ProductCard.jsx
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus, Minus, ShoppingCart, RefreshCw } from "lucide-react";
 
@@ -13,8 +12,11 @@ const ProductCard = ({
   const [quantity, setQuantity] = useState(1);
   const [currentImage, setCurrentImage] = useState(null);
 
-  // Set initial image
+  // Reset states when product changes
   useEffect(() => {
+    setSelectedVariant(null);
+    setShowVariants(false);
+    setQuantity(1);
     setCurrentImage(product?.imageUrl || "/api/placeholder/400/300");
   }, [product]);
 
@@ -26,6 +28,13 @@ const ProductCard = ({
       setCurrentImage(product?.imageUrl || "/api/placeholder/400/300");
     }
   }, [selectedVariant, product]);
+
+  // When the product is added to cart, reset the variant selection
+  useEffect(() => {
+    if (quantityInCart > 0) {
+      setShowVariants(false);
+    }
+  }, [quantityInCart]);
 
   const basePrice = useMemo(() => {
     if (product?.variants?.length > 0) {
@@ -53,7 +62,7 @@ const ProductCard = ({
 
   const handleVariantSelect = (variant) => {
     setSelectedVariant(variant);
-    setShowVariants(false);
+    setShowVariants(false); // Close dropdown after selection
     setQuantity(1);
   };
 
@@ -72,22 +81,26 @@ const ProductCard = ({
       return;
     }
 
-    // Create a complete product object with all necessary data
     const productToAdd = {
       id: product.id,
       title: product.title,
       description: product.description,
-      imageUrl: currentImage, // Use current image (either main or variant)
+      imageUrl: currentImage,
       price: selectedVariant ? selectedVariant.price : product.price,
       stockQuantity: selectedVariant ? selectedVariant.stockQuantity : product.stockQuantity,
-      selectedVariant: selectedVariant ? {
-        id: selectedVariant.id,
-        weight: selectedVariant.weight,
-        size: selectedVariant.size,
-        price: selectedVariant.price,
-        stockQuantity: selectedVariant.stockQuantity,
-        imageUrl: selectedVariant.imageUrl // Include variant image
-      } : null
+      selectedVariant: selectedVariant
+        ? {
+            id: selectedVariant.id,
+            weight: selectedVariant.weight,
+            size: selectedVariant.size,
+            price: selectedVariant.price,
+            stockQuantity: selectedVariant.stockQuantity,
+            imageUrl: selectedVariant.imageUrl,
+          }
+        : null,
+      vendorId: product.vendorId,
+      vendorName: product.vendorName,
+      vendorSlug: product.vendorSlug,
     };
 
     const currentVariantStock = selectedVariant
@@ -100,7 +113,12 @@ const ProductCard = ({
     }
 
     onAddToCart(productToAdd, quantity);
+
+    // Reset selection after adding to cart
+    setSelectedVariant(null);
     setQuantity(1);
+    setShowVariants(false);
+    setCurrentImage(product?.imageUrl || "/api/placeholder/400/300"); // Reset image to default
   };
 
   const resetSelection = () => {
@@ -120,6 +138,9 @@ const ProductCard = ({
           src={currentImage}
           alt={product.title}
           className="w-full h-full object-cover transition-all duration-300 ease-in-out"
+          onError={(e) => {
+            e.target.src = "/api/placeholder/400/300";
+          }}
         />
       </div>
 
@@ -152,38 +173,42 @@ const ProductCard = ({
           </div>
 
           {/* Variant Selection */}
-          {(showVariants || selectedVariant) &&
-            product.variants?.length > 0 && (
-              <div className="mb-4">
-                <div className="flex items-center gap-0 pr-4">
-                  <select
-                    onChange={(e) => {
-                      const variant = product.variants.find(
-                        (v) => v.id === e.target.value
-                      );
-                      if (variant) handleVariantSelect(variant);
-                    }}
-                    value={selectedVariant?.id || ""}
-                    className="flex-1 p-2 border rounded-md"
-                  >
-                    <option value="">Select Size/Weight</option>
-                    {product.variants.map((variant) => (
-                      <option key={variant.id} value={variant.id}>
-                        {variant.weight} - {variant.size} - ₦
-                        {Number(variant.price).toLocaleString()}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={resetSelection}
-                    className="flex-shrink-0 p-2 text-gray-600 hover:text-gray-800 rounded-md hover:bg-gray-100"
-                    title="Reset selection"
-                  >
-                    <RefreshCw size={20} />
-                  </button>
-                </div>
+          {(showVariants || selectedVariant) && product.variants?.length > 0 && (
+            <div className="mb-4">
+              <div className="flex items-center gap-0 pr-4">
+                <select
+                  onChange={(e) => {
+                    const variant = product.variants.find(
+                      (v) => v.id === e.target.value
+                    );
+                    if (variant) {
+                      handleVariantSelect(variant);
+                    } else {
+                      resetSelection();
+                    }
+                  }}
+                  value={selectedVariant?.id || ""}
+                  className="flex-1 p-2 border rounded-md"
+                  onBlur={() => setShowVariants(false)}
+                >
+                  <option value="">Select Size/Weight</option>
+                  {product.variants.map((variant) => (
+                    <option key={variant.id} value={variant.id}>
+                      {variant.weight} - {variant.size} - ₦
+                      {Number(variant.price).toLocaleString()}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={resetSelection}
+                  className="flex-shrink-0 p-2 text-gray-600 hover:text-gray-800 rounded-md hover:bg-gray-100"
+                  title="Reset selection"
+                >
+                  <RefreshCw size={20} />
+                </button>
               </div>
-            )}
+            </div>
+          )}
 
           {/* Quantity Input and Add to Cart */}
           {quantityInCart === 0 ? (

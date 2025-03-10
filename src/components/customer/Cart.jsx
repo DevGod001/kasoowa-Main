@@ -1,46 +1,77 @@
-import React, { useState } from 'react';
-import { X, ShoppingBag, Plus, Minus, Trash2 } from 'lucide-react';
-import CheckoutAuthModal from './CheckoutAuthModal';
+import React, { useState } from "react";
+import { X, ShoppingBag, Plus, Minus, Trash2 } from "lucide-react";
+import CheckoutAuthModal from "./CheckoutAuthModal";
 
-const Cart = ({ isOpen, onClose, cartItems, updateQuantity, removeFromCart }) => {
+const Cart = ({
+  isOpen,
+  onClose,
+  cartItems,
+  updateQuantity,
+  removeFromCart,
+}) => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Calculate total
   const calculateTotal = () => {
     return cartItems.reduce((total, item) => {
-      return total + (item.price * item.quantity);
+      return total + item.price * item.quantity;
     }, 0);
   };
 
   // Handle checkout process
   const handleCheckoutStart = () => {
+    // Log cart items for debugging
+    console.log("Starting checkout with items:", cartItems);
     setIsAuthModalOpen(true);
   };
 
   // Check if cart has items
   const hasItems = cartItems.length > 0;
 
+  // CRITICAL FIX: Ensure proper cart item structure before passing to checkout
+  const preparedCartItems = cartItems.map((item) => {
+    // Ensure variant is consistently available under both property names
+    const enhancedItem = {
+      ...item,
+      id: String(item.id), // Ensure ID is a string
+      variant: item.selectedVariant || item.variant || null, // Ensure variant is available
+      selectedVariant: item.selectedVariant || item.variant || null, // Duplicate for compatibility
+    };
+
+    // Ensure vendor ID is a string if it exists
+    if (enhancedItem.vendorId) {
+      enhancedItem.vendorId = String(enhancedItem.vendorId);
+    }
+
+    // Log each prepared item for debugging
+    console.log(`Prepared cart item ${item.id}:`, enhancedItem);
+
+    return enhancedItem;
+  });
+
   return (
     <>
       {/* Overlay */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40"
           onClick={onClose}
         />
       )}
 
       {/* Cart Panel */}
-      <div className={`fixed right-0 top-0 h-full w-full md:w-96 bg-white shadow-lg transform transition-transform duration-300 ease-in-out z-50 flex flex-col ${
-        isOpen ? 'translate-x-0' : 'translate-x-full'
-      }`}>
+      <div
+        className={`fixed right-0 top-0 h-full w-full md:w-96 bg-white shadow-lg transform transition-transform duration-300 ease-in-out z-50 flex flex-col ${
+          isOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
         {/* Cart Header */}
         <div className="flex justify-between items-center p-4 border-b">
           <div className="flex items-center">
             <ShoppingBag className="h-6 w-6 text-green-600 mr-2" />
             <h2 className="text-lg font-semibold">Your Cart</h2>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-full"
           >
@@ -58,7 +89,10 @@ const Cart = ({ isOpen, onClose, cartItems, updateQuantity, removeFromCart }) =>
           ) : (
             <div className="space-y-4">
               {cartItems.map((item) => (
-                <div key={item.id} className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                <div
+                  key={item.id}
+                  className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                >
                   <div className="flex p-4">
                     {/* Item Image */}
                     <div className="w-20 h-20 rounded-md overflow-hidden flex-shrink-0">
@@ -76,10 +110,13 @@ const Cart = ({ isOpen, onClose, cartItems, updateQuantity, removeFromCart }) =>
                     <div className="flex-1 ml-4">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h3 className="font-semibold text-gray-900">{item.title}</h3>
+                          <h3 className="font-semibold text-gray-900">
+                            {item.title}
+                          </h3>
                           {item.selectedVariant && (
                             <p className="text-sm text-gray-600">
-                              {item.selectedVariant.weight} - {item.selectedVariant.size}
+                              {item.selectedVariant.weight} -{" "}
+                              {item.selectedVariant.size}
                             </p>
                           )}
                         </div>
@@ -96,15 +133,21 @@ const Cart = ({ isOpen, onClose, cartItems, updateQuantity, removeFromCart }) =>
                         </span>
                         <div className="flex items-center bg-gray-50 rounded-lg border">
                           <button
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            onClick={() =>
+                              updateQuantity(item.id, item.quantity - 1)
+                            }
                             className="p-2 hover:bg-gray-100 text-gray-600 hover:text-gray-800 rounded-l-lg transition-colors disabled:opacity-50"
                             disabled={item.quantity <= 1}
                           >
                             <Minus size={16} />
                           </button>
-                          <span className="px-4 py-1 font-medium">{item.quantity}</span>
+                          <span className="px-4 py-1 font-medium">
+                            {item.quantity}
+                          </span>
                           <button
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                            onClick={() =>
+                              updateQuantity(item.id, item.quantity + 1)
+                            }
                             className="p-2 hover:bg-gray-100 text-gray-600 hover:text-gray-800 rounded-r-lg transition-colors disabled:opacity-50"
                             disabled={item.quantity >= item.stockQuantity}
                           >
@@ -125,19 +168,26 @@ const Cart = ({ isOpen, onClose, cartItems, updateQuantity, removeFromCart }) =>
           <div className="border-t bg-white p-4">
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-lg font-semibold text-gray-900">Total Cart Value</span>
+                <span className="text-lg font-semibold text-gray-900">
+                  Total Cart Value
+                </span>
                 <span className="text-lg font-bold text-gray-900">
                   ₦{calculateTotal().toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between items-center text-green-600">
-                <span className="text-sm font-medium">Required Deposit (10%)</span>
+                <span className="text-sm font-medium">
+                  Required Deposit (10%)
+                </span>
                 <span className="font-bold">
                   ₦{(calculateTotal() * 0.1).toLocaleString()}
                 </span>
               </div>
               <p className="text-sm text-gray-500 mt-1">
-                * Only 10% deposit is required to schedule your order pickup
+                Only 10% deposit is required to schedule your order pickup:
+                Available only in Port Harcourt.
+                <br />
+                Click the button below to see other options.
               </p>
             </div>
             <button
@@ -154,7 +204,7 @@ const Cart = ({ isOpen, onClose, cartItems, updateQuantity, removeFromCart }) =>
       <CheckoutAuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        cartItems={cartItems}
+        cartItems={preparedCartItems} // CRITICAL FIX: Use prepared cart items
         total={calculateTotal()}
       />
     </>
