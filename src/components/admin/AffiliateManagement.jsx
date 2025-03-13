@@ -70,8 +70,8 @@ const AffiliateManagement = () => {
         const affiliateOrders = allOrders.filter((order) => order.affiliateId);
 
         affiliateOrders.forEach((order) => {
-          // Calculate commission (1% of order total)
-          const commissionRate = 1; // 1% affiliate commission
+          // Calculate commission (2% of order total)
+          const commissionRate = 2; // 2% affiliate commission
           const orderTotal = order.total || 0;
           const commission = (orderTotal * commissionRate) / 100;
 
@@ -430,8 +430,8 @@ const AffiliateManagement = () => {
       orderCount = affiliateOrders.length;
 
       affiliateOrders.forEach((order) => {
-        // Calculate commission (1% of order total)
-        const commissionRate = 1; // 1% affiliate commission
+        // Calculate commission 2% of order total)
+        const commissionRate = 2; // 2% affiliate commission
         const orderTotal = order.total || 0;
         const commission = (orderTotal * commissionRate) / 100;
 
@@ -1208,7 +1208,7 @@ const AffiliateManagement = () => {
         <div className="text-xs sm:text-sm text-blue-700">
           <p className="font-medium mb-1">Affiliate Commission Structure:</p>
           <p>
-            Affiliates earn 1% commission on all sales made through their
+            Affiliates earn 2% commission on all sales made through their
             referral links. Commissions are calculated after the order is
             completed and can be withdrawn through the affiliate's dashboard.
           </p>

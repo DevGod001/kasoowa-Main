@@ -204,6 +204,16 @@ const VendorRegistration = ({ onClose }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // First, clear any existing errors
+    setErrors({
+      storeSlug: "",
+      email: "",
+      phone: "",
+      password: "",
+      accountNumber: "",
+      accountName: "",
+    });
+
     // Validate store slug
     const { isValid, message } = await validateStoreSlug(formData.storeSlug);
     if (!isValid) {
@@ -272,22 +282,68 @@ const VendorRegistration = ({ onClose }) => {
       }
 
       const vendorId = Date.now().toString();
-      // Create vendor account
+
+      // Hash the password
       const hashedPassword = SHA256(formData.password).toString();
+
+      // Create a simplified vendor data object without circular references
       const vendorData = {
-        ...formData,
-        password: hashedPassword,
-        confirmPassword: undefined,
         id: vendorId,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        password: hashedPassword, // Use the hashed password
+        businessName: formData.businessName,
+        storeSlug: formData.storeSlug,
+        businessAddress: formData.businessAddress,
+        city: formData.city,
+        state: formData.state,
+        country: formData.country,
+        cac: formData.cac,
+        idType: formData.idType,
+        idNumber: formData.idNumber,
+        idImage: formData.idImage,
+        bankName: formData.bankName,
+        bankCode: formData.bankCode,
+        accountNumber: formData.accountNumber,
+        accountName: formData.accountName,
+        businessDescription: formData.businessDescription,
+        businessType: formData.businessType,
+        categories: formData.categories || [],
         role: "vendor",
         status: "pending",
         createdAt: new Date().toISOString(),
         isActive: false,
       };
 
+      // Create a new array with the vendor data
+      const updatedVendors = [...vendors, vendorData];
+
       // Save to localStorage
-      vendors.push(vendorData);
-      localStorage.setItem("vendors", JSON.stringify(vendors));
+      try {
+        localStorage.setItem("vendors", JSON.stringify(updatedVendors));
+      } catch (storageError) {
+        console.error("Storage error:", storageError);
+
+        // If the image is too large, try to save without it
+        if (
+          storageError.name === "QuotaExceededError" ||
+          storageError.code === 22
+        ) {
+          const vendorDataWithoutImage = { ...vendorData, idImage: null };
+          const updatedVendorsWithoutImage = [
+            ...vendors,
+            vendorDataWithoutImage,
+          ];
+          localStorage.setItem(
+            "vendors",
+            JSON.stringify(updatedVendorsWithoutImage)
+          );
+        } else {
+          throw storageError; // Re-throw if it's not a storage quota issue
+        }
+      }
 
       // Log the user in
       login({
@@ -304,7 +360,7 @@ const VendorRegistration = ({ onClose }) => {
       navigate("/vendor/dashboard");
     } catch (error) {
       console.error("Registration error:", error);
-      alert("Registration failed. Please try again.");
+      alert(`Registration failed: ${error.message || "Please try again."}`);
     }
   };
 
@@ -563,6 +619,14 @@ const VendorRegistration = ({ onClose }) => {
                   onChange={(e) => {
                     const file = e.target.files[0];
                     if (file) {
+                      // Check file size before loading
+                      if (file.size > 2 * 1024 * 1024) {
+                        // 2MB limit
+                        alert("Please upload a smaller image (max 2MB)");
+                        e.target.value = "";
+                        return;
+                      }
+
                       const reader = new FileReader();
                       reader.onloadend = () => {
                         setFormData({
@@ -591,7 +655,7 @@ const VendorRegistration = ({ onClose }) => {
               </div>
               <p className="mt-2 text-sm text-gray-500">
                 Upload a clear image of your ID document. Supported formats:
-                JPG, PNG
+                JPG, PNG (max 2MB)
               </p>
             </div>
           </div>

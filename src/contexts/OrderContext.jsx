@@ -18,36 +18,101 @@ export const OrderProvider = ({ children }) => {
   const createOrder = (orderData) => {
     console.log("STEP 1: Order creation started with data:", orderData);
     
-    const newOrder = {
-      id: Date.now().toString(),
-      date: new Date().toISOString(),
-      status: 'pending',
-      deliveryMethod: orderData.deliveryMethod || 'delivery',
-      paymentType: orderData.paymentType || 'full', // 'full' or 'deposit'
-      deliveryAddress: orderData.deliveryMethod === 'delivery' ? {
-        address: orderData.address,
-        state: orderData.state,
-        city: orderData.city,
-        additionalInfo: orderData.additionalInfo
-      } : null,
-      deliveryFee: orderData.deliveryFee || 0,
-      amountPaid: orderData.amountPaid || 0,
-      balanceDue: orderData.balanceDue || 0,
-      ...orderData
-    };
-
-    console.log("STEP 2: Created new order object:", newOrder);
+    // Group items by vendor
+    const itemsByVendor = {};
     
-    // Save the order
-    setOrders(prevOrders => {
-      const updatedOrders = [newOrder, ...prevOrders];
-      console.log("STEP 3: Adding new order to orders array. New count:", updatedOrders.length);
-      return updatedOrders;
+    orderData.items.forEach(item => {
+      const vendorId = item.vendorId || 'no-vendor'; // Default for items without a vendor
+      
+      if (!itemsByVendor[vendorId]) {
+        itemsByVendor[vendorId] = {
+          items: [],
+          vendorName: item.vendorName || 'Kasoowa FoodHub',
+          vendorSlug: item.vendorSlug || ''
+        };
+      }
+      
+      itemsByVendor[vendorId].items.push(item);
+    });
+    
+    console.log("Grouped items by vendor:", itemsByVendor);
+    
+    // Calculate subtotals for each vendor
+    Object.keys(itemsByVendor).forEach(vendorId => {
+      let vendorSubtotal = 0;
+      
+      itemsByVendor[vendorId].items.forEach(item => {
+        const itemPrice = parseFloat(item.price) || 0;
+        const itemQuantity = parseInt(item.quantity) || 0;
+        vendorSubtotal += itemPrice * itemQuantity;
+      });
+      
+      itemsByVendor[vendorId].subtotal = vendorSubtotal;
+    });
+    
+    // Calculate delivery fee proportions if delivery method is "delivery"
+    const totalDeliveryFee = orderData.deliveryFee || 0;
+    const subtotalSum = Object.values(itemsByVendor).reduce((sum, vendor) => sum + vendor.subtotal, 0);
+    
+    // Create separate orders for each vendor
+    const orderIds = [];
+    const newOrders = [];
+    
+    Object.entries(itemsByVendor).forEach(([vendorId, vendorData]) => {
+      // Calculate proportional delivery fee (only applies if delivery method is "delivery")
+      const deliveryFeeProportion = orderData.deliveryMethod === 'delivery' 
+        ? (vendorData.subtotal / subtotalSum) * totalDeliveryFee 
+        : 0;
+      
+      // Calculate total for this vendor
+      const vendorTotal = vendorData.subtotal + (orderData.deliveryMethod === 'delivery' ? deliveryFeeProportion : 0);
+      
+      // Calculate amount paid and balance due for this vendor
+      const vendorAmountPaid = orderData.deliveryMethod === 'delivery' 
+        ? vendorTotal 
+        : vendorData.subtotal * 0.1; // 10% deposit for pickup
+      
+      const vendorBalanceDue = orderData.deliveryMethod === 'delivery' 
+        ? 0 
+        : vendorTotal - vendorAmountPaid;
+      
+      // Create vendor-specific order
+      const vendorOrder = {
+        id: `${Date.now().toString()}-${vendorId}`,
+        date: new Date().toISOString(),
+        status: 'pending',
+        deliveryMethod: orderData.deliveryMethod,
+        paymentType: orderData.paymentType || 'full', // 'full' or 'deposit'
+        deliveryAddress: orderData.deliveryMethod === 'delivery' ? {
+          address: orderData.address,
+          state: orderData.state,
+          city: orderData.city,
+          additionalInfo: orderData.additionalInfo
+        } : null,
+        deliveryFee: deliveryFeeProportion,
+        amountPaid: vendorAmountPaid,
+        balanceDue: vendorBalanceDue,
+        userEmail: orderData.userEmail,
+        userPhone: orderData.userPhone,
+        items: vendorData.items,
+        total: vendorTotal,
+        subtotal: vendorData.subtotal,
+        vendorId: vendorId !== 'no-vendor' ? vendorId : null,
+        vendorName: vendorData.vendorName,
+        vendorSlug: vendorData.vendorSlug,
+        paymentReference: orderData.paymentReference,
+        depositPercentage: orderData.deliveryMethod === 'delivery' ? "100" : "10",
+        depositPaid: vendorAmountPaid,
+        affiliateId: orderData.affiliateId
+      };
+      
+      console.log(`Created order for vendor ${vendorId}:`, vendorOrder);
+      
+      newOrders.push(vendorOrder);
+      orderIds.push(vendorOrder.id);
     });
 
-    console.log("STEP 4: Starting stock update process...");
-    
-    // Update product stock quantities after creating the order
+    // Update product stock quantities
     if (orderData.items && orderData.items.length > 0) {
       console.log("STEP 5: Order has items:", orderData.items);
       
@@ -167,6 +232,13 @@ export const OrderProvider = ({ children }) => {
       console.log("STEP 5-ERROR: Order has no items");
     }
     
+    // Add all the new orders to the orders state
+    setOrders(prevOrders => {
+      const updatedOrders = [...newOrders, ...prevOrders];
+      console.log(`STEP 3: Adding ${newOrders.length} new orders to orders array. New count:`, updatedOrders.length);
+      return updatedOrders;
+    });
+    
     // DIRECT STOCK UPDATE: Immediately force product refresh on ALL pages that use products
     try {
       // We've updated localStorage, now force any components to reread it
@@ -189,8 +261,9 @@ export const OrderProvider = ({ children }) => {
       console.error("Error in force update:", error);
     }
     
-    console.log("STEP FINAL: Order creation completed. Order ID:", newOrder.id);
-    return newOrder.id;
+    console.log("STEP FINAL: Order creation completed. Order IDs:", orderIds);
+    // Return an array of order IDs instead of a single ID
+    return orderIds.length === 1 ? orderIds[0] : orderIds;
   };
 
   const getOrdersByUser = (identifier) => {

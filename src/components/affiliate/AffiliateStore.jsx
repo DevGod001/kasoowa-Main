@@ -1,4 +1,3 @@
-// src/components/affiliate/AffiliateStore.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useProducts } from '../../contexts/ProductContext';
@@ -14,6 +13,16 @@ import {
   Filter
 } from 'lucide-react';
 
+// Utility to shuffle array
+const shuffleArray = (array) => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
 const AffiliateStore = () => {
   const { storeSlug } = useParams();
   const { products } = useProducts();
@@ -25,7 +34,9 @@ const AffiliateStore = () => {
   const [categories, setCategories] = useState([]);
   const [viewMode, setViewMode] = useState('grid');
   const [affiliateStore, setAffiliateStore] = useState(null);
-  const [affiliateProducts, setAffiliateProducts] = useState([]);
+  // We don't need this state since we only use shuffledProducts
+  // const [affiliateProducts, setAffiliateProducts] = useState([]);
+  const [shuffledProducts, setShuffledProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -53,14 +64,15 @@ const AffiliateStore = () => {
         const affiliateProductIds = affiliate.products || [];
         const storeProducts = products.filter(p => affiliateProductIds.includes(p.id));
         
-        setAffiliateProducts(storeProducts);
+        // We only need to set the shuffled products
+        setShuffledProducts(shuffleArray([...storeProducts]));
         
         // Extract unique categories
         const uniqueCategories = [...new Set(storeProducts.map(p => p.category).filter(Boolean))];
         setCategories(uniqueCategories);
         
-        // Track store visit (would implement with real backend)
-        console.log(`Tracking visit to affiliate store: ${storeSlug}`);
+        // Track store visit - now with proper visitor tracking
+        trackStoreVisit(affiliate.id);
         
         // Save affiliate ID to sessionStorage for attribution
         sessionStorage.setItem('currentAffiliateId', affiliate.id);
@@ -76,11 +88,52 @@ const AffiliateStore = () => {
     fetchStoreData();
   }, [storeSlug, products]);
 
+  // Function to track store visits
+  const trackStoreVisit = (affiliateId) => {
+    try {
+      // Generate a unique visitor ID if not already set
+      let visitorId = sessionStorage.getItem('visitorId');
+      if (!visitorId) {
+        visitorId = `visitor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        sessionStorage.setItem('visitorId', visitorId);
+      }
+      
+      // Get existing visits data
+      const visitsKey = `affiliateVisits_${affiliateId}`;
+      const existingVisits = JSON.parse(localStorage.getItem(visitsKey) || '[]');
+      
+      // Add this visit
+      const newVisit = {
+        visitorId,
+        timestamp: new Date().toISOString(),
+        madePurchase: false // Will be updated if purchase made
+      };
+      
+      // Check if this visitor already visited in this session to avoid duplicate counts
+      const alreadyVisitedToday = existingVisits.some(visit => 
+        visit.visitorId === visitorId && 
+        new Date(visit.timestamp).toDateString() === new Date().toDateString()
+      );
+      
+      if (!alreadyVisitedToday) {
+        // Add the new visit to storage
+        const updatedVisits = [...existingVisits, newVisit];
+        localStorage.setItem(visitsKey, JSON.stringify(updatedVisits));
+        
+        console.log(`Tracked new visit for affiliate ID: ${affiliateId}`);
+      } else {
+        console.log(`Visitor already counted today for affiliate ID: ${affiliateId}`);
+      }
+    } catch (error) {
+      console.error('Error tracking store visit:', error);
+    }
+  };
+
   // Apply filters and sorting
   const getFilteredProducts = () => {
-    if (!affiliateProducts) return [];
+    if (!shuffledProducts || shuffledProducts.length === 0) return [];
     
-    let filtered = [...affiliateProducts];
+    let filtered = [...shuffledProducts];
     
     // Apply search filter
     if (searchTerm) {
@@ -119,7 +172,7 @@ const AffiliateStore = () => {
     } else if (sortBy === 'name') {
       filtered.sort((a, b) => a.title?.localeCompare(b.title || ''));
     }
-    // 'popularity' sorting would require actual view/purchase data
+    // For 'popularity' sorting, we use the shuffled order which is the default
     
     return filtered;
   };

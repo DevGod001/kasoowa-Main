@@ -4,7 +4,7 @@ import { useProducts } from "../../contexts/ProductContext";
 import { useAuth } from "../../contexts/AuthContext";
 import ProductForm from "../admin/ProductForm";
 import VendorProductList from "./VendorProductList";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import VendorWallet from "./VendorWallet";
 import TimeSlotManager from "../../utils/TimeSlotManager";
 
@@ -28,6 +28,7 @@ import {
   Clipboard,
   MapPin,
   AlertTriangle,
+  LogOut,
 } from "lucide-react";
 
 const VendorDashboard = () => {
@@ -48,9 +49,16 @@ const VendorDashboard = () => {
   const [deliveryProof, setDeliveryProof] = useState(null);
   const [deliveryProofPreview, setDeliveryProofPreview] = useState(null);
 
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { products, setProducts } = useProducts();
   const [showWallet, setShowWallet] = useState(true);
+  const navigate = useNavigate();
+
+  // Handle logout
+  const handleLogout = () => {
+    logout();
+    navigate("/vendor/auth");
+  };
 
   // Filter products to only show vendor's products
   const vendorProducts = products.filter((product) => {
@@ -102,13 +110,13 @@ const VendorDashboard = () => {
           return acc + vendorOrderTotal;
         }, 0);
 
-        // Calculate admin commission (2.5%) and deduct it from the total
-        const commissionRate = 2.5; // 2.5% admin commission
+        // Calculate admin commission (4.1%) and deduct it from the total
+        const commissionRate = 4.1; // 4.1% admin commission
         const adminCommission = (vendorTotal * commissionRate) / 100;
         const vendorNetTotal = vendorTotal - adminCommission;
 
         console.log("Calculated vendor sales before commission:", vendorTotal); // Debug log
-        console.log("Admin commission (2.5%):", adminCommission); // Debug log
+        console.log("Admin commission (4.1%):", adminCommission); // Debug log
         console.log("Vendor's actual sales after commission:", vendorNetTotal); // Debug log
 
         setTotalSales(vendorNetTotal); // Set the vendor's amount after commission
@@ -179,7 +187,7 @@ const VendorDashboard = () => {
           const vendorTotal = vendorSubtotal + deliveryFeePortion;
 
           const depositPaid = order.depositPaid || order.amountPaid || 0;
-          const commissionRate = 2.5; // Admin commission rate
+          const commissionRate = 4.1; // Admin commission rate
           const adminCommission = (vendorTotal * commissionRate) / 100;
           const vendorAmount = vendorTotal - adminCommission;
 
@@ -258,10 +266,10 @@ const VendorDashboard = () => {
             : false) ||
           (order.items
             ? order.items.some((item) =>
-                item.title
-                  ? item.title.toLowerCase().includes(searchLower)
-                  : false
-              )
+              item.title
+                ? item.title.toLowerCase().includes(searchLower)
+                : false
+            )
             : false)
       );
     }
@@ -427,9 +435,8 @@ const VendorDashboard = () => {
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `vendor_orders_export_${
-      new Date().toISOString().split("T")[0]
-    }.csv`;
+    link.download = `vendor_orders_export_${new Date().toISOString().split("T")[0]
+      }.csv`;
     link.click();
   };
 
@@ -498,8 +505,8 @@ const VendorDashboard = () => {
         {status === "pickup-ready"
           ? "Pickup Ready"
           : status === "pickup-completed"
-          ? "Pickup Completed"
-          : status.charAt(0).toUpperCase() + status.slice(1)}
+            ? "Pickup Completed"
+            : status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     );
   };
@@ -553,23 +560,23 @@ const VendorDashboard = () => {
           processingOrder.status === "pending"
             ? "processing"
             : processingOrder.status === "processing"
-            ? "pickup-ready"
-            : processingOrder.status === "pickup-ready"
-            ? "pickup-completed"
-            : processingOrder.status === "pickup-completed"
-            ? "completed"
-            : processingOrder.status;
+              ? "pickup-ready"
+              : processingOrder.status === "pickup-ready"
+                ? "pickup-completed"
+                : processingOrder.status === "pickup-completed"
+                  ? "completed"
+                  : processingOrder.status;
       } else {
         newStatus =
           processingOrder.status === "pending"
             ? "processing"
             : processingOrder.status === "processing"
-            ? "processed"
-            : processingOrder.status === "processed"
-            ? "shipped"
-            : processingOrder.status === "shipped"
-            ? "delivered"
-            : processingOrder.status;
+              ? "processed"
+              : processingOrder.status === "processed"
+                ? "shipped"
+                : processingOrder.status === "shipped"
+                  ? "delivered"
+                  : processingOrder.status;
       }
 
       // Update local storage
@@ -609,7 +616,6 @@ const VendorDashboard = () => {
           // Only update payment status when order is fully completed
           if (newStatus === "completed") {
             console.log("Order marked as completed, releasing pickup slot");
-
 
             if (processingOrder.pickupScheduled && processingOrder.pickupTime) {
               const timeSlotManager = new TimeSlotManager();
@@ -670,6 +676,7 @@ const VendorDashboard = () => {
       alert("Failed to process order. Please try again.");
     }
   };
+
   // Add a fetchVendorOrders function to force refresh
   const fetchVendorOrders = () => {
     setIsOrdersLoading(true);
@@ -716,7 +723,7 @@ const VendorDashboard = () => {
         const vendorTotal = vendorSubtotal + deliveryFeePortion;
 
         const depositPaid = order.depositPaid || order.amountPaid || 0;
-        const commissionRate = 2.5; // Admin commission rate
+        const commissionRate = 4.1; // Admin commission rate
         const adminCommission = (vendorTotal * commissionRate) / 100;
         const vendorAmount = vendorTotal - adminCommission;
 
@@ -822,6 +829,13 @@ const VendorDashboard = () => {
             Domain Settings
           </Link>
           <button
+            onClick={handleLogout}
+            className="text-red-600 hover:text-red-700 flex items-center text-sm"
+          >
+            <LogOut className="h-4 w-4 mr-1" />
+            Logout
+          </button>
+          <button
             onClick={() => setIsAddingProduct(true)}
             className="bg-green-600 text-white px-3 py-1.5 rounded-md hover:bg-green-700 text-sm w-full sm:w-auto mt-2 sm:mt-0"
           >
@@ -853,16 +867,15 @@ const VendorDashboard = () => {
                   readOnly
                   className="text-sm border rounded px-2 py-1 w-full truncate"
                 />
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(storeUrl);
-                    alert("Store URL copied to clipboard!");
-                  }}
+                <a
+                  href={storeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="p-1 hover:bg-gray-100 rounded flex-shrink-0"
-                  title="Copy store URL"
+                  title="Open store in new tab"
                 >
                   <Share2 className="h-4 w-4" />
-                </button>
+                </a>
               </div>
             </div>
           </div>
@@ -890,22 +903,20 @@ const VendorDashboard = () => {
         <nav className="flex space-x-8" aria-label="Tabs">
           <button
             onClick={() => setActiveTab("orders")}
-            className={`${
-              activeTab === "orders"
+            className={`${activeTab === "orders"
                 ? "border-green-500 text-green-600"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }
+              }
             whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
             Orders & Sales
           </button>
           <button
             onClick={() => setActiveTab("products")}
-            className={`${
-              activeTab === "products"
+            className={`${activeTab === "products"
                 ? "border-green-500 text-green-600"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-            }
+              }
             whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
             Products
@@ -1065,11 +1076,10 @@ const VendorDashboard = () => {
 
                     {/* Order Summary */}
                     <div
-                      className={`grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 ${
-                        expandedOrders.has(order.id)
+                      className={`grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 ${expandedOrders.has(order.id)
                           ? "block"
                           : "hidden md:grid"
-                      }`}
+                        }`}
                     >
                       <div>
                         <p className="text-sm text-gray-500">Customer</p>
@@ -1093,11 +1103,10 @@ const VendorDashboard = () => {
 
                     {/* Action buttons and tracking number */}
                     <div
-                      className={`flex flex-wrap justify-between items-center mb-4 ${
-                        expandedOrders.has(order.id)
+                      className={`flex flex-wrap justify-between items-center mb-4 ${expandedOrders.has(order.id)
                           ? "block"
                           : "hidden md:flex"
-                      }`}
+                        }`}
                     >
                       <div className="flex flex-wrap gap-2">
                         {/* Standard delivery flow actions */}
@@ -1344,29 +1353,29 @@ const VendorDashboard = () => {
                           order.status === "delivered") ||
                           (order.pickupProofUrl &&
                             order.status === "pickup-completed")) && (
-                          <div className="mt-4">
-                            <h4 className="font-medium mb-2">
-                              {order.pickupScheduled
-                                ? "Pickup Proof"
-                                : "Delivery Proof"}
-                            </h4>
-                            <div className="mt-2">
-                              <img
-                                src={
-                                  order.pickupScheduled
-                                    ? order.pickupProofUrl
-                                    : order.deliveryProofUrl
-                                }
-                                alt={
-                                  order.pickupScheduled
-                                    ? "Pickup proof"
-                                    : "Delivery proof"
-                                }
-                                className="max-h-48 rounded-md border"
-                              />
+                            <div className="mt-4">
+                              <h4 className="font-medium mb-2">
+                                {order.pickupScheduled
+                                  ? "Pickup Proof"
+                                  : "Delivery Proof"}
+                              </h4>
+                              <div className="mt-2">
+                                <img
+                                  src={
+                                    order.pickupScheduled
+                                      ? order.pickupProofUrl
+                                      : order.deliveryProofUrl
+                                  }
+                                  alt={
+                                    order.pickupScheduled
+                                      ? "Pickup proof"
+                                      : "Delivery proof"
+                                  }
+                                  className="max-h-48 rounded-md border"
+                                />
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
 
                         {/* Payment Details with Commission */}
                         <div className="mt-4 bg-green-50 p-3 sm:p-4 rounded-lg">
@@ -1437,15 +1446,14 @@ const VendorDashboard = () => {
                                     Payment Status
                                   </p>
                                   <p
-                                    className={`font-medium ${
-                                      order.status === "completed" ||
-                                      order.pickupScheduled
+                                    className={`font-medium ${order.status === "completed" ||
+                                        order.pickupScheduled
                                         ? "text-green-600"
                                         : "text-yellow-600"
-                                    }`}
+                                      }`}
                                   >
                                     {order.status === "completed" ||
-                                    order.pickupScheduled
+                                      order.pickupScheduled
                                       ? "Paid in Full"
                                       : "Deposit Paid"}
                                   </p>
@@ -1457,20 +1465,20 @@ const VendorDashboard = () => {
                           {/* Payment Status */}
                           {(order.status === "completed" ||
                             order.paymentReleased) && (
-                            <div className="mt-3 pt-3 border-t border-green-200">
-                              <div className="flex items-center">
-                                <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
-                                <p className="text-sm font-medium text-green-700">
-                                  Payment Released{" "}
-                                  {order.paymentReleasedDate
-                                    ? `on ${new Date(
+                              <div className="mt-3 pt-3 border-t border-green-200">
+                                <div className="flex items-center">
+                                  <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                                  <p className="text-sm font-medium text-green-700">
+                                    Payment Released{" "}
+                                    {order.paymentReleasedDate
+                                      ? `on ${new Date(
                                         order.paymentReleasedDate
                                       ).toLocaleDateString()}`
-                                    : ""}
-                                </p>
+                                      : ""}
+                                  </p>
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
                         </div>
                       </div>
                     )}
@@ -1545,19 +1553,19 @@ const VendorDashboard = () => {
                   ? processingOrder.status === "processing"
                     ? "Mark as Pickup Ready"
                     : processingOrder.status === "pickup-ready"
-                    ? "Mark as Pickup Completed"
-                    : processingOrder.status === "pickup-completed"
-                    ? "Complete Order"
-                    : "Update Order"
+                      ? "Mark as Pickup Completed"
+                      : processingOrder.status === "pickup-completed"
+                        ? "Complete Order"
+                        : "Update Order"
                   : processingOrder.status === "pending"
-                  ? "Process Order"
-                  : processingOrder.status === "processing"
-                  ? "Mark as Processed"
-                  : processingOrder.status === "processed"
-                  ? "Mark as Shipped"
-                  : processingOrder.status === "shipped"
-                  ? "Mark as Delivered"
-                  : "Update Order"}
+                    ? "Process Order"
+                    : processingOrder.status === "processing"
+                      ? "Mark as Processed"
+                      : processingOrder.status === "processed"
+                        ? "Mark as Shipped"
+                        : processingOrder.status === "shipped"
+                          ? "Mark as Delivered"
+                          : "Update Order"}
               </h2>
               <button
                 onClick={closeProcessingModal}
@@ -1620,59 +1628,59 @@ const VendorDashboard = () => {
                 !processingOrder.pickupScheduled) ||
                 (processingOrder.status === "pickup-ready" &&
                   processingOrder.pickupScheduled)) && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {processingOrder.pickupScheduled
-                      ? "Pickup Proof"
-                      : "Delivery Proof"}{" "}
-                    {processingOrder.status === "shipped" ||
-                    processingOrder.status === "pickup-ready"
-                      ? "(Required)"
-                      : "(Optional)"}
-                  </label>
-                  <div className="flex items-center">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleDeliveryProofChange}
-                      className="hidden"
-                      id="proofImage"
-                      required={
-                        (processingOrder.status === "shipped" ||
-                          processingOrder.status === "pickup-ready") &&
-                        !deliveryProofPreview
-                      }
-                    />
-                    <label
-                      htmlFor="proofImage"
-                      className="cursor-pointer bg-white border border-gray-300 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      <Camera className="h-4 w-4 mr-1 inline-block" />
-                      Upload Image
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {processingOrder.pickupScheduled
+                        ? "Pickup Proof"
+                        : "Delivery Proof"}{" "}
+                      {processingOrder.status === "shipped" ||
+                        processingOrder.status === "pickup-ready"
+                        ? "(Required)"
+                        : "(Optional)"}
                     </label>
-                  </div>
-
-                  {deliveryProofPreview && (
-                    <div className="mt-2">
-                      <img
-                        src={deliveryProofPreview}
-                        alt="Proof preview"
-                        className="max-h-40 rounded-md border"
+                    <div className="flex items-center">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleDeliveryProofChange}
+                        className="hidden"
+                        id="proofImage"
+                        required={
+                          (processingOrder.status === "shipped" ||
+                            processingOrder.status === "pickup-ready") &&
+                          !deliveryProofPreview
+                        }
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDeliveryProof(null);
-                          setDeliveryProofPreview(null);
-                        }}
-                        className="mt-1 text-xs text-red-600 hover:text-red-800"
+                      <label
+                        htmlFor="proofImage"
+                        className="cursor-pointer bg-white border border-gray-300 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                       >
-                        Remove image
-                      </button>
+                        <Camera className="h-4 w-4 mr-1 inline-block" />
+                        Upload Image
+                      </label>
                     </div>
-                  )}
-                </div>
-              )}
+
+                    {deliveryProofPreview && (
+                      <div className="mt-2">
+                        <img
+                          src={deliveryProofPreview}
+                          alt="Proof preview"
+                          className="max-h-40 rounded-md border"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeliveryProof(null);
+                            setDeliveryProofPreview(null);
+                          }}
+                          className="mt-1 text-xs text-red-600 hover:text-red-800"
+                        >
+                          Remove image
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
               <div className="mt-6 flex flex-col sm:flex-row justify-end gap-2">
                 <button
@@ -1690,19 +1698,19 @@ const VendorDashboard = () => {
                     ? processingOrder.status === "processing"
                       ? "Mark Ready for Pickup"
                       : processingOrder.status === "pickup-ready"
-                      ? "Confirm Pickup"
-                      : processingOrder.status === "pickup-completed"
-                      ? "Complete Order"
-                      : "Update Status"
+                        ? "Confirm Pickup"
+                        : processingOrder.status === "pickup-completed"
+                          ? "Complete Order"
+                          : "Update Status"
                     : processingOrder.status === "pending"
-                    ? "Process Order"
-                    : processingOrder.status === "processing"
-                    ? "Mark as Processed"
-                    : processingOrder.status === "processed"
-                    ? "Mark as Shipped"
-                    : processingOrder.status === "shipped"
-                    ? "Mark as Delivered"
-                    : "Update Status"}
+                      ? "Process Order"
+                      : processingOrder.status === "processing"
+                        ? "Mark as Processed"
+                        : processingOrder.status === "processed"
+                          ? "Mark as Shipped"
+                          : processingOrder.status === "shipped"
+                            ? "Mark as Delivered"
+                            : "Update Status"}
                 </button>
               </div>
             </form>

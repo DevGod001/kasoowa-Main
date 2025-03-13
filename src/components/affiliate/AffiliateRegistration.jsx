@@ -192,7 +192,7 @@ const AffiliateRegistration = () => {
       <div className="mb-8 p-4 bg-gray-50 rounded-lg">
         <h2 className="text-lg font-semibold mb-2">Benefits of becoming an affiliate:</h2>
         <ul className="list-disc pl-5 space-y-1">
-          <li>Earn 1% commission on all sales referred through your store</li>
+          <li>Earn 2% commission on all sales referred through your store</li>
           <li>Create your own personalized storefront</li>
           <li>Select products you want to promote</li>
           <li>Track your earnings in real-time</li>

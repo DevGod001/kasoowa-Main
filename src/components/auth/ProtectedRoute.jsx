@@ -16,7 +16,7 @@ const ProtectedRoute = ({ children, requireAffiliateApproval = false }) => {
       // For affiliate routes, redirect to affiliate-specific auth page
       return <Navigate to="/affiliate/auth" state={{ from: location.pathname }} />;
     }
-    return <Navigate to="/vendor/registration" />;
+    return <Navigate to="/vendor/auth" />; // Changed from "/vendor/registration" to "/vendor/auth"
   }
   
   // If we're on an affiliate page that requires approval

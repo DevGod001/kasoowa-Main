@@ -30,8 +30,8 @@ export const AffiliateProvider = ({ children }) => {
       const affiliateOrders = allOrders.filter(order => order.affiliateId === affiliateId);
       
       affiliateOrders.forEach(order => {
-        // Calculate commission (1% of order total)
-        const commissionRate = 1; // 1% affiliate commission
+        // Calculate commission (2% of order total)
+        const commissionRate = 2; // 2% affiliate commission
         const orderTotal = order.total || 0;
         const commission = (orderTotal * commissionRate) / 100;
         
@@ -425,7 +425,7 @@ export const AffiliateProvider = ({ children }) => {
         
         monthlyData[monthKey].orders += 1;
         monthlyData[monthKey].sales += order.total || 0;
-        monthlyData[monthKey].commissions += ((order.total || 0) * 1) / 100; // 1% commission
+        monthlyData[monthKey].commissions += ((order.total || 0) * 2) / 100; // 2% commission
       });
       
       // Convert to array and sort by month

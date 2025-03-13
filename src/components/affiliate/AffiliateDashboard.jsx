@@ -30,6 +30,9 @@ const AffiliateDashboard = () => {
 
   const navigate = useNavigate();
   const { logout } = useAuth();
+  
+  // State for copy feedback
+  const [copySuccess, setCopySuccess] = useState(false);
 
   // Redirect to pending page if affiliate status is pending
   useEffect(() => {
@@ -41,6 +44,82 @@ const AffiliateDashboard = () => {
   const handleLogout = () => {
     logout();
     navigate("/affiliate/auth");
+  };
+  
+  // Handle copy store link with improved mobile support
+  const copyToClipboard = () => {
+    if (!storeUrl) {
+      console.error('No store URL available to copy');
+      return;
+    }
+
+    // Function to show alert as last resort
+    const showCopyAlert = () => {
+      alert(`Your store URL is: ${storeUrl}\n\nPlease manually copy this URL.`);
+    };
+
+    // Function for fallback methods
+    const fallbackCopyMethod = () => {
+      try {
+        // Create a temporary input element (better than textarea for mobile)
+        const tempInput = document.createElement('input');
+        tempInput.value = storeUrl;
+        
+        // Make the input part of the document but out of view
+        tempInput.style.position = 'absolute';
+        tempInput.style.left = '-9999px';
+        document.body.appendChild(tempInput);
+        
+        // Handle iOS special case
+        if (navigator.userAgent.match(/ipad|ipod|iphone/i)) {
+          // Create a range and select
+          const range = document.createRange();
+          range.selectNodeContents(tempInput);
+          
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          tempInput.setSelectionRange(0, 999999); // For iOS
+        } else {
+          // For other devices
+          tempInput.select();
+        }
+        
+        // Execute copy command
+        const successful = document.execCommand('copy');
+        
+        if (successful) {
+          setCopySuccess(true);
+          setTimeout(() => setCopySuccess(false), 2000);
+        } else {
+          console.error('execCommand copy failed');
+          showCopyAlert();
+        }
+        
+        // Clean up
+        document.body.removeChild(tempInput);
+      } catch (err) {
+        console.error('Fallback copy method failed: ', err);
+        showCopyAlert();
+      }
+    };
+
+    // Primary method: Use Clipboard API
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(storeUrl)
+        .then(() => {
+          setCopySuccess(true);
+          setTimeout(() => setCopySuccess(false), 2000);
+        })
+        .catch(err => {
+          console.error('Clipboard API failed: ', err);
+          // Fall back to alternative methods
+          fallbackCopyMethod();
+        });
+    } else {
+      // Clipboard API not available, use fallback
+      fallbackCopyMethod();
+    }
   };
 
   const [monthlyData, setMonthlyData] = useState([]);
@@ -57,10 +136,10 @@ const AffiliateDashboard = () => {
         // Get real monthly sales data
         const monthData = getMonthlyData();
         
-        // Manually calculate the commission as 1% of sales if it's missing
+        // Manually calculate the commission as 2% of sales if it's missing
         const fixedMonthData = monthData.map(month => ({
           ...month,
-          commission: month.commission || (month.sales * 0.01)
+          commission: month.commission || (month.sales * 0.02)
         }));
         
         setMonthlyData(fixedMonthData);
@@ -107,7 +186,7 @@ const AffiliateDashboard = () => {
             id: order.id || `order-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
             product: product,
             amount: orderTotal,
-            commission: orderTotal * 0.01, // 1% commission
+            commission: orderTotal * 0.02, // 2% commission
             date: order.date || new Date().toISOString()
           };
         });
@@ -201,7 +280,7 @@ const AffiliateDashboard = () => {
             </h2>
             <ul className="list-disc pl-5 space-y-2">
               <li>
-                Earn 1% commission on all sales referred through your store
+                Earn 2% commission on all sales referred through your store
               </li>
               <li>Create your own personalized storefront</li>
               <li>Select products you want to promote</li>
@@ -222,7 +301,7 @@ const AffiliateDashboard = () => {
           <h1 className="text-2xl font-bold">Affiliate Dashboard</h1>
           <button
             onClick={handleLogout}
-            className="flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:text-white hover:bg-red-600 border border-red-600 rounded transition-colors"
+            className="self-end sm:self-auto flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:text-white hover:bg-red-600 border border-red-600 rounded transition-colors"
           >
             <LogOut className="h-4 w-4" />
             <span>Logout</span>
@@ -301,13 +380,10 @@ const AffiliateDashboard = () => {
                 {storeUrl || ""}
               </p>
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(storeUrl || "");
-                  alert("Store URL copied to clipboard");
-                }}
-                className="text-green-600 text-sm hover:underline mt-2 inline-block"
+                onClick={copyToClipboard}
+                className="text-green-600 text-sm hover:underline mt-2 inline-flex items-center"
               >
-                Copy Link
+                {copySuccess ? "Copied!" : "Copy Link"}
               </button>
             </div>
             <Share2 className="h-8 w-8 text-purple-600 p-1 bg-purple-50 rounded-full" />
@@ -528,7 +604,7 @@ const AffiliateDashboard = () => {
                           (product.variants && product.variants.length > 0
                             ? parseFloat(product.variants[0].price || 0)
                             : parseFloat(product.price || 0)) || 0
-                        ) * 0.01
+                        ) * 0.02
                       ).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </p>
                   </div>

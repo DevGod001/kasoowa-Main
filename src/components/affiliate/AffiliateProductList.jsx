@@ -166,9 +166,9 @@ const AffiliateProductList = () => {
                   ? parseFloat(product.variants[0].price || 0) 
                   : parseFloat(product.price || 0);
                 return sum + price;
-              }, 0) * 0.01).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              }, 0) * 0.02).toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </p>
-            <p className="text-xs text-gray-500">Based on 1% commission rate</p>
+            <p className="text-xs text-gray-500">Based on 2% commission rate</p>
           </div>
         </div>
       </div>
@@ -185,7 +185,7 @@ const AffiliateProductList = () => {
                 const price = product.variants && product.variants.length > 0 
                   ? parseFloat(product.variants[0].price || 0) 
                   : parseFloat(product.price || 0);
-                const commission = price * 0.01;
+                const commission = price * 0.02;
                 
                 return (
                   <div key={product.id} className={`border rounded-lg overflow-hidden transition-all ${selected ? 'border-green-500 bg-green-50' : ''}`}>

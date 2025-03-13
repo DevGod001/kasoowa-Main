@@ -31,7 +31,7 @@ const OrderManagementSection = () => {
   const [processingOrder, setProcessingOrder] = useState(null);
   const [trackingNumber, setTrackingNumber] = useState("");
   const [deliveryProof, setDeliveryProof] = useState(null);
-  const [commissionRate, setCommissionRate] = useState(2.5);
+  const [commissionRate, setCommissionRate] = useState(4.1);
   const [showWallet, setShowWallet] = useState(true);
 
   // Status badge component

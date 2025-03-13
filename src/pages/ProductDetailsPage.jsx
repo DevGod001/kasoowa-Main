@@ -136,15 +136,26 @@ const ProductDetailsPage = () => {
   const itemInCart = cartItems ? cartItems[productId] : null;
   const inCartQuantity = itemInCart ? itemInCart.quantity : 0;
 
+  // Handle back navigation
+  const handleGoBack = () => {
+    // Use browser history to go back to the previous page
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      // Fallback to store page or home if there's no history
+      navigate(storeSlug ? `/store/${storeSlug}` : "/");
+    }
+  };
+
   if (!product) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
         <h2 className="text-2xl font-bold text-gray-900">Product not found</h2>
         <button
-          onClick={() => navigate(storeSlug ? `/store/${storeSlug}` : "/")}
+          onClick={handleGoBack}
           className="mt-4 text-green-600 hover:text-green-700"
         >
-          Return to {storeSlug ? "store" : "home"}
+          Return to previous page
         </button>
       </div>
     );
@@ -167,15 +178,20 @@ const ProductDetailsPage = () => {
       return;
     }
 
-  // Check for affiliate referral from URL or session storage
-  const queryParams = new URLSearchParams(window.location.search);
-  const affiliateId = queryParams.get('aff') || queryParams.get('ref') || sessionStorage.getItem('referringAffiliateId');
-  
-  if (affiliateId) {
-    // Store the affiliate ID for attribution during checkout
-    sessionStorage.setItem('referringAffiliateId', affiliateId);
-    console.log(`Product added to cart with affiliate referral: ${affiliateId}`);
-  }
+    // Check for affiliate referral from URL or session storage
+    const queryParams = new URLSearchParams(window.location.search);
+    const affiliateId =
+      queryParams.get("aff") ||
+      queryParams.get("ref") ||
+      sessionStorage.getItem("referringAffiliateId");
+
+    if (affiliateId) {
+      // Store the affiliate ID for attribution during checkout
+      sessionStorage.setItem("referringAffiliateId", affiliateId);
+      console.log(
+        `Product added to cart with affiliate referral: ${affiliateId}`
+      );
+    }
 
     const productToAdd = {
       ...product,
@@ -230,11 +246,11 @@ const ProductDetailsPage = () => {
         {/* Back Navigation */}
         <nav className="mb-4 sm:mb-8">
           <button
-            onClick={() => navigate(storeSlug ? `/store/${storeSlug}` : "/")}
+            onClick={handleGoBack}
             className="flex items-center text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-            Back to {storeSlug ? "Store" : "Home"}
+            Back to Store
           </button>
         </nav>
 
@@ -501,6 +517,16 @@ const ProductDetailsPage = () => {
                   key={relatedProduct.id}
                   to={`/product/${relatedProduct.id}`}
                   className="group bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col"
+                  onClick={(e) => {
+                    // If we're already on product details page, prevent default navigation
+                    // and reload the page with the new product ID
+                    if (window.location.pathname.includes("/product/")) {
+                      e.preventDefault();
+                      navigate(`/product/${relatedProduct.id}`);
+                      // Scroll to top after navigation
+                      window.scrollTo(0, 0);
+                    }
+                  }}
                 >
                   <div className="relative w-full h-32 sm:h-48 bg-gray-200 overflow-hidden">
                     <img
@@ -520,7 +546,18 @@ const ProductDetailsPage = () => {
                     </p>
                     <div className="mt-auto flex justify-between items-center">
                       <span className="text-sm sm:text-lg font-bold">
-                        ₦{Number(relatedProduct.price).toLocaleString()}
+                        {relatedProduct.variants &&
+                        relatedProduct.variants.length > 0
+                          ? `₦${parseFloat(
+                              Math.min(
+                                ...relatedProduct.variants.map(
+                                  (v) => v.price || 0
+                                )
+                              )
+                            ).toLocaleString()}`
+                          : `₦${parseFloat(
+                              relatedProduct.price || 0
+                            ).toLocaleString()}`}
                       </span>
                       <span className="text-xs sm:text-sm text-green-600">
                         View Details

@@ -35,7 +35,19 @@ const AffiliateWallet = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [monthlyData] = useState(getMonthlyData());
+  
+  // Get monthly data and sanitize it to avoid NaN values
+  const rawMonthlyData = getMonthlyData();
+  const [monthlyData] = useState(() => {
+    return rawMonthlyData.map(month => ({
+      ...month,
+      // Ensure all numeric values are valid numbers or default to 0
+      sales: typeof month.sales === 'number' && !isNaN(month.sales) ? month.sales : 0,
+      commission: typeof month.commission === 'number' && !isNaN(month.commission) 
+        ? month.commission 
+        : (typeof month.sales === 'number' && !isNaN(month.sales) ? month.sales * 0.02 : 0)
+    }));
+  });
 
   // Format account number input (only allow numbers and limit to standard length)
   const handleAccountNumberChange = (e) => {
@@ -147,9 +159,12 @@ const AffiliateWallet = () => {
     }
   };
 
-  // Format currency
+  // Format currency - with error handling for NaN values
   const formatCurrency = (amount) => {
-    return `₦${parseFloat(amount).toLocaleString(undefined, {
+    // Make sure amount is a valid number, otherwise use 0
+    const numAmount = typeof amount === 'number' && !isNaN(amount) ? amount : 0;
+    
+    return `₦${numAmount.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
@@ -271,11 +286,11 @@ const AffiliateWallet = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-4">Monthly Earnings</h2>
             
-            {monthlyData.length > 0 ? (
+            {monthlyData && monthlyData.length > 0 ? (
               <div className="space-y-2">
                 {monthlyData.map((month, index) => (
                   <div key={index} className="flex justify-between items-center pb-2 border-b">
-                    <span className="text-sm font-medium">{month.month}</span>
+                    <span className="text-sm font-medium">{month.month || ""}</span>
                     <span className="font-semibold">
                       {formatCurrency(month.commission)}
                     </span>
@@ -291,14 +306,14 @@ const AffiliateWallet = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-4">Pending Withdrawals</h2>
             
-            {pendingWithdrawals.length > 0 ? (
+            {pendingWithdrawals && pendingWithdrawals.length > 0 ? (
               <div className="space-y-4">
                 {pendingWithdrawals.map((withdrawal) => (
                   <div key={withdrawal.id} className="flex justify-between items-center p-3 bg-yellow-50 rounded-md">
                     <div>
                       <p className="text-sm font-medium">{formatCurrency(withdrawal.amount)}</p>
                       <p className="text-xs text-gray-500">
-                        {new Date(withdrawal.requestDate).toLocaleDateString()}
+                        {withdrawal.requestDate ? new Date(withdrawal.requestDate).toLocaleDateString() : ""}
                       </p>
                       <p className="text-xs text-gray-500">
                         {withdrawal.method === 'bank' ? 'Bank Transfer' : 'Mobile Money'}
@@ -319,14 +334,16 @@ const AffiliateWallet = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-4">Withdrawal History</h2>
             
-            {withdrawalHistory.length > 0 ? (
+            {withdrawalHistory && withdrawalHistory.length > 0 ? (
               <div className="space-y-4">
                 {withdrawalHistory.map((withdrawal) => (
                   <div key={withdrawal.id} className="flex justify-between items-center p-3 border-b">
                     <div>
                       <p className="text-sm font-medium">{formatCurrency(withdrawal.amount)}</p>
                       <p className="text-xs text-gray-500">
-                        {new Date(withdrawal.completionDate || withdrawal.requestDate).toLocaleDateString()}
+                        {withdrawal.completionDate || withdrawal.requestDate ? 
+                          new Date(withdrawal.completionDate || withdrawal.requestDate).toLocaleDateString() 
+                          : ""}
                       </p>
                     </div>
                     <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
@@ -345,10 +362,10 @@ const AffiliateWallet = () => {
             <h2 className="text-lg font-semibold mb-4">Commission Information</h2>
             <div className="p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-700 mb-2 font-medium">
-                Current Commission Rate: 1%
+                Current Commission Rate: 2%
               </p>
               <p className="text-sm text-blue-700">
-                You earn 1% of the total sales value for each order made through your affiliate links or store.
+                You earn 2% of the total sales value for each order made through your affiliate links or store.
               </p>
             </div>
           </div>

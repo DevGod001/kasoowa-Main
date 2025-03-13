@@ -122,7 +122,7 @@ const VendorWallet = () => {
           const vendorTotal = vendorSubtotal + deliveryFeePortion;
 
           // Calculate the admin commission
-          const commissionRate = 2.5; // 2.5% admin commission
+          const commissionRate = 4.1; // 4.1% admin commission
           const adminCommission = (vendorTotal * commissionRate) / 100;
           const vendorAmount = vendorTotal - adminCommission;
 
@@ -468,7 +468,7 @@ const VendorWallet = () => {
             </p>
             <div className="mt-4 bg-blue-100 p-2 rounded text-xs text-blue-700 flex items-start">
               <AlertTriangle className="h-4 w-4 mr-1 flex-shrink-0 mt-0.5" />
-              <span>All amounts shown are after the 2.5% admin commission</span>
+              <span>All amounts shown are after the 4.1% admin commission</span>
             </div>
           </div>
         </div>
@@ -479,7 +479,7 @@ const VendorWallet = () => {
             <AlertTriangle className="h-5 w-5 text-gray-600 mr-2 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm text-gray-700">
-                <span className="font-medium">Admin Fee:</span> A 2.5%
+                <span className="font-medium">Admin Fee:</span> A 4.1%
                 commission is applied to all sales. This fee covers payment
                 processing, platform maintenance, and customer support services.
               </p>

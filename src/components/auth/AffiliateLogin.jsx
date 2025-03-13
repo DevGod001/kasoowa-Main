@@ -29,6 +29,7 @@ const AffiliateLogin = () => {
       // Debug logging for data
       console.log('Users:', usersData);
       console.log('Email trying to login:', email);
+      console.log('All affiliates:', affiliates);
       
       // Find user with matching email
       const user = usersData.find(u => u.email.toLowerCase() === email.toLowerCase());
@@ -62,13 +63,36 @@ const AffiliateLogin = () => {
         throw new Error('Error verifying credentials. Please try again.');
       }
       
-      // Check if user is an affiliate
-      const affiliate = affiliates.find(a => a.email.toLowerCase() === email.toLowerCase() || 
-                                            a.userId === user.id);
-      const pendingAffiliate = pendingAffiliates.find(a => a.email.toLowerCase() === email.toLowerCase() || 
-                                                        a.userId === user.id);
+      // Check if user is an affiliate - enhanced logging and comparison
+      console.log('Checking affiliate status for user ID:', user.id);
+      console.log('Checking affiliate status for email:', user.email);
+      
+      // Enhanced matching logic with more detailed logging
+      const affiliate = affiliates.find(a => {
+        const emailMatch = a.email && a.email.toLowerCase() === user.email.toLowerCase();
+        const idMatch = a.userId === user.id || String(a.userId) === String(user.id);
+        
+        console.log(`Checking affiliate: ${a.email}, userId: ${a.userId}`);
+        console.log(`Email match: ${emailMatch}, ID match: ${idMatch}`);
+        
+        return emailMatch || idMatch;
+      });
+      
+      // Add same detailed logging for pending affiliates
+      const pendingAffiliate = pendingAffiliates.find(a => {
+        const emailMatch = a.email && a.email.toLowerCase() === user.email.toLowerCase();
+        const idMatch = a.userId === user.id || String(a.userId) === String(user.id);
+        
+        console.log(`Checking pending: ${a.email}, userId: ${a.userId}`);
+        console.log(`Email match: ${emailMatch}, ID match: ${idMatch}`);
+        
+        return emailMatch || idMatch;
+      });
       
       console.log('Affiliate status:', { isAffiliate: !!affiliate, isPending: !!pendingAffiliate });
+      if (affiliate) {
+        console.log('Affiliate details:', affiliate);
+      }
       
       // Call login with user data
       await login({
@@ -212,7 +236,8 @@ const AffiliateLogin = () => {
               onClick={() => {
                 const usersData = JSON.parse(localStorage.getItem('users') || '[]');
                 const pendingAffiliates = JSON.parse(localStorage.getItem('pendingAffiliates') || '[]');
-                setDebugInfo(`Users: ${usersData.length}, Pending: ${pendingAffiliates.length}`);
+                const affiliates = JSON.parse(localStorage.getItem('affiliates') || '[]');
+                setDebugInfo(`Users: ${usersData.length}, Affiliates: ${affiliates.length}, Pending: ${pendingAffiliates.length}`);
               }}
               className="text-xs text-gray-500 hover:text-gray-700"
             >

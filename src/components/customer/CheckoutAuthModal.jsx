@@ -146,7 +146,7 @@ const CheckoutAuthModal = ({ isOpen, onClose, cartItems, total }) => {
               }
             : null,
         date: new Date().toISOString(),
-        affiliateId: sessionStorage.getItem('referringAffiliateId') || null,
+        affiliateId: sessionStorage.getItem("referringAffiliateId") || null,
       };
 
       // Log the complete order data to verify it contains correct information
@@ -158,7 +158,9 @@ const CheckoutAuthModal = ({ isOpen, onClose, cartItems, total }) => {
       // Store order data temporarily
       localStorage.setItem("tempOrderData", JSON.stringify(orderData));
 
-      await createOrder(orderData);
+      // Now createOrder might return an array of order IDs (one per vendor)
+      const orderResult = await createOrder(orderData);
+      console.log("Order creation result:", orderResult);
 
       // Clear cart
       clearCart();

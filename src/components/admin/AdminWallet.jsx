@@ -121,7 +121,7 @@ const AdminWallet = () => {
 
         allOrders.forEach((order) => {
           const orderTotal = order.total || 0;
-          const commissionRate = order.commissionRate || 2.5; // default 2.5%
+          const commissionRate = order.commissionRate || 4.1; // default 4.1%
           const adminCommission = (orderTotal * commissionRate) / 100;
 
           // Add to total sales
@@ -240,7 +240,7 @@ const AdminWallet = () => {
             : 0;
 
         const vendorTotal = vendorSubtotal + deliveryFeePortion;
-        const commissionRate = 2.5; // Admin commission rate
+        const commissionRate = 4.1; // Admin commission rate
         const adminCommission = (vendorTotal * commissionRate) / 100;
         const vendorAmount = vendorTotal - adminCommission;
 
@@ -910,7 +910,7 @@ const AdminWallet = () => {
         <div className="text-sm text-gray-700">
           <p className="font-medium mb-1">Commission Calculation:</p>
           <p>
-            Admin earns 2.5% commission on all sales processed through the
+            Admin earns 4.1% commission on all sales processed through the
             platform. This calculation ensures vendors receive the correct
             payout amount after commission is deducted.
           </p>

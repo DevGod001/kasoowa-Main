@@ -1,18 +1,127 @@
-// src/contexts/CartContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
+
+// Helper functions for storage management
+const storageHelpers = {
+  // Store data in chunks to overcome localStorage size limitations
+  saveToStorage: (key, data) => {
+    try {
+      const stringData = JSON.stringify(data);
+      
+      // If data is small enough, store it directly
+      if (stringData.length < 1000000) { // ~1MB safety threshold
+        localStorage.setItem(key, stringData);
+        return true;
+      }
+      
+      // Otherwise, split into chunks
+      const chunks = Math.ceil(stringData.length / 1000000);
+      
+      // Store metadata
+      localStorage.setItem(`${key}_info`, JSON.stringify({
+        chunks: chunks,
+        totalLength: stringData.length,
+        timestamp: new Date().getTime()
+      }));
+      
+      // Store each chunk
+      for (let i = 0; i < chunks; i++) {
+        const start = i * 1000000;
+        const end = Math.min(start + 1000000, stringData.length);
+        const chunk = stringData.substring(start, end);
+        localStorage.setItem(`${key}_chunk_${i}`, chunk);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error saving to storage:', error);
+      
+      // Clean up any partial saves
+      try {
+        const info = JSON.parse(localStorage.getItem(`${key}_info`));
+        if (info && info.chunks) {
+          for (let i = 0; i < info.chunks; i++) {
+            localStorage.removeItem(`${key}_chunk_${i}`);
+          }
+        }
+        localStorage.removeItem(`${key}_info`);
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+      
+      return false;
+    }
+  },
+  
+  // Load data from chunks
+  loadFromStorage: (key) => {
+    try {
+      // Check if we're using chunks
+      const infoString = localStorage.getItem(`${key}_info`);
+      
+      // If no chunk info, try regular storage
+      if (!infoString) {
+        const directData = localStorage.getItem(key);
+        return directData ? JSON.parse(directData) : null;
+      }
+      
+      // Otherwise, load and combine chunks
+      const info = JSON.parse(infoString);
+      let fullData = '';
+      
+      for (let i = 0; i < info.chunks; i++) {
+        const chunk = localStorage.getItem(`${key}_chunk_${i}`);
+        if (!chunk) {
+          console.error(`Missing chunk ${i} of ${info.chunks} for ${key}`);
+          return null;
+        }
+        fullData += chunk;
+      }
+      
+      return JSON.parse(fullData);
+    } catch (error) {
+      console.error('Error loading from storage:', error);
+      return null;
+    }
+  },
+  
+  // Clean up all chunks for a key
+  removeFromStorage: (key) => {
+    try {
+      // Check if we're using chunks
+      const infoString = localStorage.getItem(`${key}_info`);
+      
+      if (infoString) {
+        const info = JSON.parse(infoString);
+        // Remove all chunks
+        for (let i = 0; i < info.chunks; i++) {
+          localStorage.removeItem(`${key}_chunk_${i}`);
+        }
+        localStorage.removeItem(`${key}_info`);
+      }
+      
+      // Remove direct item regardless
+      localStorage.removeItem(key);
+    } catch (error) {
+      console.error('Error removing from storage:', error);
+    }
+  }
+};
 
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
   const [cartItems, setCartItems] = useState(() => {
-    const savedCart = localStorage.getItem('kasoowaCart');
-    console.log('Initial cart from localStorage:', savedCart);
-    return savedCart ? JSON.parse(savedCart) : {};
+    const savedCart = storageHelpers.loadFromStorage('kasoowaCart');
+    console.log('Initial cart from storage:', savedCart);
+    return savedCart || {};
   });
 
   useEffect(() => {
-    console.log('Saving cart to localStorage:', cartItems);
-    localStorage.setItem('kasoowaCart', JSON.stringify(cartItems));
+    console.log('Saving cart to storage:', cartItems);
+    const success = storageHelpers.saveToStorage('kasoowaCart', cartItems);
+    if (!success) {
+      console.warn('Failed to save cart to storage. Using memory-only storage for now.');
+    }
   }, [cartItems]);
 
   const addToCart = (product, quantity = 1) => {
@@ -82,6 +191,7 @@ export const CartProvider = ({ children }) => {
   const clearCart = () => {
     console.log('Clearing cart');
     setCartItems({});
+    storageHelpers.removeFromStorage('kasoowaCart');
   };
 
   const getCartTotal = () => {
