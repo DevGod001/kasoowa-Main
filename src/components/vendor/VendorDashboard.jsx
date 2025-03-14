@@ -50,7 +50,7 @@ const VendorDashboard = () => {
   const [deliveryProofPreview, setDeliveryProofPreview] = useState(null);
 
   const { user, logout } = useAuth();
-  const { products, setProducts } = useProducts();
+  const { products, addProduct, updateProduct, deleteProduct } = useProducts();
   const [showWallet, setShowWallet] = useState(true);
   const navigate = useNavigate();
 
@@ -266,10 +266,10 @@ const VendorDashboard = () => {
             : false) ||
           (order.items
             ? order.items.some((item) =>
-              item.title
-                ? item.title.toLowerCase().includes(searchLower)
-                : false
-            )
+                item.title
+                  ? item.title.toLowerCase().includes(searchLower)
+                  : false
+              )
             : false)
       );
     }
@@ -306,41 +306,22 @@ const VendorDashboard = () => {
 
   const handleAddProduct = async (productData) => {
     try {
-      // Get the main product data from the form
-      const product = {
-        id: Date.now().toString(),
-        title: productData.get("title"),
-        description: productData.get("description"),
-        category: productData.get("category"),
-        vendorId: user.id.toString(),
-        vendorName: user.name,
-        vendorSlug: user.storeSlug,
-        variants: JSON.parse(productData.get("variants") || "[]"),
-      };
+      // Add vendor information to product data
+      productData.append("vendorId", user.id.toString());
+      productData.append("vendorName", user.name);
+      productData.append("vendorSlug", user.storeSlug || "default-store");
 
-      // Handle the main product image
-      const mainImage = productData.get("image");
-      if (mainImage) {
-        const reader = new FileReader();
-        product.imageUrl = await new Promise((resolve) => {
-          reader.onloadend = () => resolve(reader.result);
-          reader.readAsDataURL(mainImage);
-        });
-      }
+      // Use the API to add the product
+      await addProduct(productData);
 
-      setProducts((prevProducts) => {
-        const updatedProducts = [...prevProducts, product];
-        localStorage.setItem(
-          "kasoowaProducts",
-          JSON.stringify(updatedProducts)
-        );
-        return updatedProducts;
-      });
-
+      // Product has been added via API, so we don't need to manually update state
       setIsAddingProduct(false);
+
+      // Display success message
+      alert("Product added successfully!");
     } catch (error) {
       console.error("Error adding product:", error);
-      alert("Failed to add product");
+      alert("Failed to add product: " + (error.message || "Unknown error"));
     }
   };
 
@@ -352,36 +333,17 @@ const VendorDashboard = () => {
         return;
       }
 
-      const updatedProduct = {
-        ...editingProduct,
-        title: productData.get("title"),
-        description: productData.get("description"),
-        category: productData.get("category"),
-        variants: JSON.parse(productData.get("variants") || "[]"),
-      };
+      // Use the API to update the product
+      await updateProduct(editingProduct.id, productData);
 
-      // Handle the main product image
-      const mainImage = productData.get("image");
-      if (mainImage) {
-        const reader = new FileReader();
-        updatedProduct.imageUrl = await new Promise((resolve) => {
-          reader.onloadend = () => resolve(reader.result);
-          reader.readAsDataURL(mainImage);
-        });
-      }
-
-      setProducts((prevProducts) => {
-        const updated = prevProducts.map((p) =>
-          p.id === editingProduct.id ? updatedProduct : p
-        );
-        localStorage.setItem("kasoowaProducts", JSON.stringify(updated));
-        return updated;
-      });
-
+      // Close the edit modal
       setEditingProduct(null);
+
+      // Display success message
+      alert("Product updated successfully!");
     } catch (error) {
       console.error("Error updating product:", error);
-      alert("Failed to update product");
+      alert("Failed to update product: " + (error.message || "Unknown error"));
     }
   };
 
@@ -399,11 +361,16 @@ const VendorDashboard = () => {
     }
 
     if (window.confirm("Are you sure you want to delete this product?")) {
-      setProducts((prevProducts) => {
-        const updated = prevProducts.filter((p) => p.id !== productId);
-        localStorage.setItem("kasoowaProducts", JSON.stringify(updated));
-        return updated;
-      });
+      deleteProduct(productId)
+        .then(() => {
+          alert("Product deleted successfully!");
+        })
+        .catch((error) => {
+          console.error("Error deleting product:", error);
+          alert(
+            "Failed to delete product: " + (error.message || "Unknown error")
+          );
+        });
     }
   };
 
@@ -435,8 +402,9 @@ const VendorDashboard = () => {
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `vendor_orders_export_${new Date().toISOString().split("T")[0]
-      }.csv`;
+    link.download = `vendor_orders_export_${
+      new Date().toISOString().split("T")[0]
+    }.csv`;
     link.click();
   };
 
@@ -505,8 +473,8 @@ const VendorDashboard = () => {
         {status === "pickup-ready"
           ? "Pickup Ready"
           : status === "pickup-completed"
-            ? "Pickup Completed"
-            : status.charAt(0).toUpperCase() + status.slice(1)}
+          ? "Pickup Completed"
+          : status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     );
   };
@@ -560,23 +528,23 @@ const VendorDashboard = () => {
           processingOrder.status === "pending"
             ? "processing"
             : processingOrder.status === "processing"
-              ? "pickup-ready"
-              : processingOrder.status === "pickup-ready"
-                ? "pickup-completed"
-                : processingOrder.status === "pickup-completed"
-                  ? "completed"
-                  : processingOrder.status;
+            ? "pickup-ready"
+            : processingOrder.status === "pickup-ready"
+            ? "pickup-completed"
+            : processingOrder.status === "pickup-completed"
+            ? "completed"
+            : processingOrder.status;
       } else {
         newStatus =
           processingOrder.status === "pending"
             ? "processing"
             : processingOrder.status === "processing"
-              ? "processed"
-              : processingOrder.status === "processed"
-                ? "shipped"
-                : processingOrder.status === "shipped"
-                  ? "delivered"
-                  : processingOrder.status;
+            ? "processed"
+            : processingOrder.status === "processed"
+            ? "shipped"
+            : processingOrder.status === "shipped"
+            ? "delivered"
+            : processingOrder.status;
       }
 
       // Update local storage
@@ -903,20 +871,22 @@ const VendorDashboard = () => {
         <nav className="flex space-x-8" aria-label="Tabs">
           <button
             onClick={() => setActiveTab("orders")}
-            className={`${activeTab === "orders"
+            className={`${
+              activeTab === "orders"
                 ? "border-green-500 text-green-600"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }
+            }
             whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
             Orders & Sales
           </button>
           <button
             onClick={() => setActiveTab("products")}
-            className={`${activeTab === "products"
+            className={`${
+              activeTab === "products"
                 ? "border-green-500 text-green-600"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }
+            }
             whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
           >
             Products
@@ -1076,10 +1046,11 @@ const VendorDashboard = () => {
 
                     {/* Order Summary */}
                     <div
-                      className={`grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 ${expandedOrders.has(order.id)
+                      className={`grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 ${
+                        expandedOrders.has(order.id)
                           ? "block"
                           : "hidden md:grid"
-                        }`}
+                      }`}
                     >
                       <div>
                         <p className="text-sm text-gray-500">Customer</p>
@@ -1103,10 +1074,11 @@ const VendorDashboard = () => {
 
                     {/* Action buttons and tracking number */}
                     <div
-                      className={`flex flex-wrap justify-between items-center mb-4 ${expandedOrders.has(order.id)
+                      className={`flex flex-wrap justify-between items-center mb-4 ${
+                        expandedOrders.has(order.id)
                           ? "block"
                           : "hidden md:flex"
-                        }`}
+                      }`}
                     >
                       <div className="flex flex-wrap gap-2">
                         {/* Standard delivery flow actions */}
@@ -1353,29 +1325,29 @@ const VendorDashboard = () => {
                           order.status === "delivered") ||
                           (order.pickupProofUrl &&
                             order.status === "pickup-completed")) && (
-                            <div className="mt-4">
-                              <h4 className="font-medium mb-2">
-                                {order.pickupScheduled
-                                  ? "Pickup Proof"
-                                  : "Delivery Proof"}
-                              </h4>
-                              <div className="mt-2">
-                                <img
-                                  src={
-                                    order.pickupScheduled
-                                      ? order.pickupProofUrl
-                                      : order.deliveryProofUrl
-                                  }
-                                  alt={
-                                    order.pickupScheduled
-                                      ? "Pickup proof"
-                                      : "Delivery proof"
-                                  }
-                                  className="max-h-48 rounded-md border"
-                                />
-                              </div>
+                          <div className="mt-4">
+                            <h4 className="font-medium mb-2">
+                              {order.pickupScheduled
+                                ? "Pickup Proof"
+                                : "Delivery Proof"}
+                            </h4>
+                            <div className="mt-2">
+                              <img
+                                src={
+                                  order.pickupScheduled
+                                    ? order.pickupProofUrl
+                                    : order.deliveryProofUrl
+                                }
+                                alt={
+                                  order.pickupScheduled
+                                    ? "Pickup proof"
+                                    : "Delivery proof"
+                                }
+                                className="max-h-48 rounded-md border"
+                              />
                             </div>
-                          )}
+                          </div>
+                        )}
 
                         {/* Payment Details with Commission */}
                         <div className="mt-4 bg-green-50 p-3 sm:p-4 rounded-lg">
@@ -1446,14 +1418,15 @@ const VendorDashboard = () => {
                                     Payment Status
                                   </p>
                                   <p
-                                    className={`font-medium ${order.status === "completed" ||
-                                        order.pickupScheduled
+                                    className={`font-medium ${
+                                      order.status === "completed" ||
+                                      order.pickupScheduled
                                         ? "text-green-600"
                                         : "text-yellow-600"
-                                      }`}
+                                    }`}
                                   >
                                     {order.status === "completed" ||
-                                      order.pickupScheduled
+                                    order.pickupScheduled
                                       ? "Paid in Full"
                                       : "Deposit Paid"}
                                   </p>
@@ -1465,20 +1438,20 @@ const VendorDashboard = () => {
                           {/* Payment Status */}
                           {(order.status === "completed" ||
                             order.paymentReleased) && (
-                              <div className="mt-3 pt-3 border-t border-green-200">
-                                <div className="flex items-center">
-                                  <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
-                                  <p className="text-sm font-medium text-green-700">
-                                    Payment Released{" "}
-                                    {order.paymentReleasedDate
-                                      ? `on ${new Date(
+                            <div className="mt-3 pt-3 border-t border-green-200">
+                              <div className="flex items-center">
+                                <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                                <p className="text-sm font-medium text-green-700">
+                                  Payment Released{" "}
+                                  {order.paymentReleasedDate
+                                    ? `on ${new Date(
                                         order.paymentReleasedDate
                                       ).toLocaleDateString()}`
-                                      : ""}
-                                  </p>
-                                </div>
+                                    : ""}
+                                </p>
                               </div>
-                            )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -1553,19 +1526,19 @@ const VendorDashboard = () => {
                   ? processingOrder.status === "processing"
                     ? "Mark as Pickup Ready"
                     : processingOrder.status === "pickup-ready"
-                      ? "Mark as Pickup Completed"
-                      : processingOrder.status === "pickup-completed"
-                        ? "Complete Order"
-                        : "Update Order"
+                    ? "Mark as Pickup Completed"
+                    : processingOrder.status === "pickup-completed"
+                    ? "Complete Order"
+                    : "Update Order"
                   : processingOrder.status === "pending"
-                    ? "Process Order"
-                    : processingOrder.status === "processing"
-                      ? "Mark as Processed"
-                      : processingOrder.status === "processed"
-                        ? "Mark as Shipped"
-                        : processingOrder.status === "shipped"
-                          ? "Mark as Delivered"
-                          : "Update Order"}
+                  ? "Process Order"
+                  : processingOrder.status === "processing"
+                  ? "Mark as Processed"
+                  : processingOrder.status === "processed"
+                  ? "Mark as Shipped"
+                  : processingOrder.status === "shipped"
+                  ? "Mark as Delivered"
+                  : "Update Order"}
               </h2>
               <button
                 onClick={closeProcessingModal}
@@ -1628,59 +1601,59 @@ const VendorDashboard = () => {
                 !processingOrder.pickupScheduled) ||
                 (processingOrder.status === "pickup-ready" &&
                   processingOrder.pickupScheduled)) && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {processingOrder.pickupScheduled
-                        ? "Pickup Proof"
-                        : "Delivery Proof"}{" "}
-                      {processingOrder.status === "shipped" ||
-                        processingOrder.status === "pickup-ready"
-                        ? "(Required)"
-                        : "(Optional)"}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {processingOrder.pickupScheduled
+                      ? "Pickup Proof"
+                      : "Delivery Proof"}{" "}
+                    {processingOrder.status === "shipped" ||
+                    processingOrder.status === "pickup-ready"
+                      ? "(Required)"
+                      : "(Optional)"}
+                  </label>
+                  <div className="flex items-center">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleDeliveryProofChange}
+                      className="hidden"
+                      id="proofImage"
+                      required={
+                        (processingOrder.status === "shipped" ||
+                          processingOrder.status === "pickup-ready") &&
+                        !deliveryProofPreview
+                      }
+                    />
+                    <label
+                      htmlFor="proofImage"
+                      className="cursor-pointer bg-white border border-gray-300 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      <Camera className="h-4 w-4 mr-1 inline-block" />
+                      Upload Image
                     </label>
-                    <div className="flex items-center">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleDeliveryProofChange}
-                        className="hidden"
-                        id="proofImage"
-                        required={
-                          (processingOrder.status === "shipped" ||
-                            processingOrder.status === "pickup-ready") &&
-                          !deliveryProofPreview
-                        }
-                      />
-                      <label
-                        htmlFor="proofImage"
-                        className="cursor-pointer bg-white border border-gray-300 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                      >
-                        <Camera className="h-4 w-4 mr-1 inline-block" />
-                        Upload Image
-                      </label>
-                    </div>
-
-                    {deliveryProofPreview && (
-                      <div className="mt-2">
-                        <img
-                          src={deliveryProofPreview}
-                          alt="Proof preview"
-                          className="max-h-40 rounded-md border"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDeliveryProof(null);
-                            setDeliveryProofPreview(null);
-                          }}
-                          className="mt-1 text-xs text-red-600 hover:text-red-800"
-                        >
-                          Remove image
-                        </button>
-                      </div>
-                    )}
                   </div>
-                )}
+
+                  {deliveryProofPreview && (
+                    <div className="mt-2">
+                      <img
+                        src={deliveryProofPreview}
+                        alt="Proof preview"
+                        className="max-h-40 rounded-md border"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeliveryProof(null);
+                          setDeliveryProofPreview(null);
+                        }}
+                        className="mt-1 text-xs text-red-600 hover:text-red-800"
+                      >
+                        Remove image
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="mt-6 flex flex-col sm:flex-row justify-end gap-2">
                 <button
@@ -1698,19 +1671,19 @@ const VendorDashboard = () => {
                     ? processingOrder.status === "processing"
                       ? "Mark Ready for Pickup"
                       : processingOrder.status === "pickup-ready"
-                        ? "Confirm Pickup"
-                        : processingOrder.status === "pickup-completed"
-                          ? "Complete Order"
-                          : "Update Status"
+                      ? "Confirm Pickup"
+                      : processingOrder.status === "pickup-completed"
+                      ? "Complete Order"
+                      : "Update Status"
                     : processingOrder.status === "pending"
-                      ? "Process Order"
-                      : processingOrder.status === "processing"
-                        ? "Mark as Processed"
-                        : processingOrder.status === "processed"
-                          ? "Mark as Shipped"
-                          : processingOrder.status === "shipped"
-                            ? "Mark as Delivered"
-                            : "Update Status"}
+                    ? "Process Order"
+                    : processingOrder.status === "processing"
+                    ? "Mark as Processed"
+                    : processingOrder.status === "processed"
+                    ? "Mark as Shipped"
+                    : processingOrder.status === "shipped"
+                    ? "Mark as Delivered"
+                    : "Update Status"}
                 </button>
               </div>
             </form>

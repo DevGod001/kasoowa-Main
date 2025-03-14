@@ -13,7 +13,7 @@ import AffiliateManagement from "./AffiliateManagement";
 const ProductManagement = () => {
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const { products, setProducts } = useProducts();
+  const { products, addProduct, updateProduct, deleteProduct } = useProducts();
 
   return (
     <ChatProvider>
@@ -23,7 +23,9 @@ const ProductManagement = () => {
         editingProduct={editingProduct}
         setEditingProduct={setEditingProduct}
         products={products}
-        setProducts={setProducts}
+        addProduct={addProduct}
+        updateProduct={updateProduct}
+        deleteProduct={deleteProduct}
       />
     </ChatProvider>
   );
@@ -35,7 +37,9 @@ const ProductManagementContent = ({
   editingProduct,
   setEditingProduct,
   products,
-  setProducts,
+  addProduct,
+  updateProduct,
+  deleteProduct,
 }) => {
   const { setIsAdminOnline } = useChat();
   const [activeTab, setActiveTab] = useState("orders"); // Add this state
@@ -45,154 +49,64 @@ const ProductManagementContent = ({
     return () => setIsAdminOnline(false);
   }, [setIsAdminOnline]);
 
+  // Updated handleAddProduct function for ProductManagement component
   const handleAddProduct = async (productData) => {
     try {
-      // Handle main product image
-      const imageFile = productData.get("image");
-      let imageUrl = null;
+      // Call the addProduct function from context which now uses the API
+      await addProduct(productData);
 
-      if (imageFile) {
-        const reader = new FileReader();
-        imageUrl = await new Promise((resolve) => {
-          reader.onloadend = () => resolve(reader.result);
-          reader.readAsDataURL(imageFile);
-        });
-      }
-
-      // Handle variant images
-      const variantImages = {};
-      let variants = JSON.parse(productData.get("variants") || "[]");
-
-      // Process each variant's image
-      for (const variant of variants) {
-        if (variant.imageKey) {
-          const variantImageFile = productData.get(variant.imageKey);
-          if (variantImageFile) {
-            const reader = new FileReader();
-            const variantImageUrl = await new Promise((resolve) => {
-              reader.onloadend = () => resolve(reader.result);
-              reader.readAsDataURL(variantImageFile);
-            });
-            variantImages[variant.id] = variantImageUrl;
-          }
-        }
-      }
-
-      // Update variants with their image URLs
-      variants = variants.map((variant) => ({
-        ...variant,
-        imageUrl: variantImages[variant.id] || null,
-        imageKey: undefined, // Remove the temporary imageKey
-      }));
-
-      const newProduct = {
-        id: Date.now().toString(),
-        title: productData.get("title"),
-        description: productData.get("description"),
-        category: productData.get("category"),
-        variants: variants,
-        imageUrl: imageUrl,
-      };
-
-      setProducts((prevProducts) => {
-        const updatedProducts = [...prevProducts, newProduct];
-        localStorage.setItem(
-          "kasoowaProducts",
-          JSON.stringify(updatedProducts)
-        );
-        return updatedProducts;
-      });
-
+      // Close the form modal
       setIsAddingProduct(false);
+
+      // Show success message
+      alert("Product added successfully!");
     } catch (error) {
       console.error("Error adding product:", error);
-      alert("Failed to add product");
+      alert("Failed to add product: " + (error.message || "Unknown error"));
     }
   };
 
+  // Updated handleEditProduct function for ProductManagement component
   const handleEditProduct = async (productData) => {
     try {
-      // Handle main product image
-      const imageFile = productData.get("image");
-      let imageUrl = editingProduct.imageUrl;
+      // Use the API function to update the product
+      await updateProduct(editingProduct.id, productData);
 
-      if (imageFile) {
-        const reader = new FileReader();
-        imageUrl = await new Promise((resolve) => {
-          reader.onloadend = () => resolve(reader.result);
-          reader.readAsDataURL(imageFile);
-        });
-      }
-
-      // Handle variant images
-      const variantImages = {};
-      let variants = JSON.parse(productData.get("variants") || "[]");
-
-      // Process each variant's image
-      for (const variant of variants) {
-        if (variant.imageKey) {
-          const variantImageFile = productData.get(variant.imageKey);
-          if (variantImageFile) {
-            const reader = new FileReader();
-            const variantImageUrl = await new Promise((resolve) => {
-              reader.onloadend = () => resolve(reader.result);
-              reader.readAsDataURL(variantImageFile);
-            });
-            variantImages[variant.id] = variantImageUrl;
-          }
-        }
-      }
-
-      // Update variants with their image URLs
-      variants = variants.map((variant) => ({
-        ...variant,
-        imageUrl: variantImages[variant.id] || variant.imageUrl || null,
-        imageKey: undefined, // Remove the temporary imageKey
-      }));
-
-      const updatedProduct = {
-        ...editingProduct,
-        title: productData.get("title"),
-        description: productData.get("description"),
-        category: productData.get("category"),
-        variants: variants,
-        imageUrl: imageUrl,
-      };
-
-      setProducts((prevProducts) => {
-        const updated = prevProducts.map((p) =>
-          p.id === editingProduct.id ? updatedProduct : p
-        );
-        localStorage.setItem("kasoowaProducts", JSON.stringify(updated));
-        return updated;
-      });
-
+      // Close the edit modal
       setEditingProduct(null);
+
+      // Show success message
+      alert("Product updated successfully!");
     } catch (error) {
       console.error("Error updating product:", error);
-      alert("Failed to update product");
+      alert("Failed to update product: " + (error.message || "Unknown error"));
     }
   };
 
+  // Updated handleDeleteProduct function for ProductManagement component
   const handleDeleteProduct = (productId) => {
     if (window.confirm("Are you sure you want to delete this product?")) {
       try {
-        setProducts((prevProducts) => {
-          const updatedProducts = prevProducts.filter(
-            (p) => p.id !== productId
-          );
-          localStorage.setItem(
-            "kasoowaProducts",
-            JSON.stringify(updatedProducts)
-          );
-          return updatedProducts;
-        });
+        // Use the API function to delete the product
+        deleteProduct(productId)
+          .then(() => {
+            alert("Product deleted successfully!");
+          })
+          .catch((error) => {
+            console.error("Error deleting product:", error);
+            alert(
+              "Failed to delete product: " + (error.message || "Unknown error")
+            );
+          });
       } catch (error) {
         console.error("Error deleting product:", error);
-        alert("Failed to delete product");
+        alert(
+          "Failed to delete product: " + (error.message || "Unknown error")
+        );
       }
     }
   };
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">

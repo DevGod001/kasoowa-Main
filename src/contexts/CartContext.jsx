@@ -1,4 +1,5 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import { CartAPI } from '../services/api';
 
 // Helper functions for storage management
 const storageHelpers = {
@@ -115,14 +116,77 @@ export const CartProvider = ({ children }) => {
     console.log('Initial cart from storage:', savedCart);
     return savedCart || {};
   });
+  
+  // Add userId state for server sync
+  const [userId, setUserId] = useState(null);
+  
+  // Track if initial server sync has been done
+  const initialSyncDone = useRef(false);
+  
+  // Get user ID from JWT token on mount
+  useEffect(() => {
+    const token = localStorage.getItem('kasoowaAuthToken');
+    if (token) {
+      try {
+        // Decode the JWT token to get user ID
+        const payload = token.split('.')[1];
+        const decodedPayload = JSON.parse(atob(payload));
+        if (decodedPayload.id) {
+          setUserId(decodedPayload.id);
+        }
+      } catch (error) {
+        console.error('Error decoding token:', error);
+      }
+    }
+  }, []);
+  
+  // Initial sync with server when userId is set for the first time
+  useEffect(() => {
+    const syncWithServer = async () => {
+      if (userId && !initialSyncDone.current) {
+        try {
+          console.log('Trying to load cart from server for user:', userId);
+          const serverCart = await CartAPI.getCart(userId);
+          
+          if (serverCart && Object.keys(serverCart).length > 0) {
+            console.log('Loaded cart from server:', serverCart);
+            setCartItems(serverCart);
+          } else {
+            // If no cart on server, sync local cart to server
+            console.log('No cart on server, syncing local cart');
+            await CartAPI.saveCart(userId, cartItems);
+          }
+          
+          // Mark initial sync as done
+          initialSyncDone.current = true;
+        } catch (error) {
+          console.error('Error syncing with server:', error);
+        }
+      }
+    };
+    
+    if (userId) {
+      syncWithServer();
+    }
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // We intentionally omit cartItems to avoid potential infinite loops
 
+  // Save cart to storage and sync with server when cart changes
   useEffect(() => {
     console.log('Saving cart to storage:', cartItems);
     const success = storageHelpers.saveToStorage('kasoowaCart', cartItems);
     if (!success) {
       console.warn('Failed to save cart to storage. Using memory-only storage for now.');
     }
-  }, [cartItems]);
+    
+    // Sync with server if user is logged in and initial sync is done
+    if (userId && initialSyncDone.current) {
+      console.log('Syncing cart with server for user:', userId);
+      CartAPI.saveCart(userId, cartItems).catch(error => {
+        console.error('Error syncing cart with server:', error);
+      });
+    }
+  }, [cartItems, userId]);
 
   const addToCart = (product, quantity = 1) => {
     console.log('Adding to cart:', product, quantity);
@@ -157,6 +221,13 @@ export const CartProvider = ({ children }) => {
         delete newItems[productId];
         return newItems;
       });
+      
+      // Also remove from server if logged in
+      if (userId) {
+        CartAPI.removeCartItem(userId, productId).catch(error => {
+          console.error('Error removing item from server cart:', error);
+        });
+      }
     } else {
       setCartItems(prev => {
         const item = prev[productId];
@@ -168,12 +239,21 @@ export const CartProvider = ({ children }) => {
           return prev;
         }
 
+        const updatedItem = {
+          ...item,
+          quantity
+        };
+        
+        // Update on server if logged in
+        if (userId) {
+          CartAPI.updateCartItem(userId, productId, updatedItem).catch(error => {
+            console.error('Error updating item on server cart:', error);
+          });
+        }
+
         return {
           ...prev,
-          [productId]: {
-            ...item,
-            quantity
-          }
+          [productId]: updatedItem
         };
       });
     }
@@ -184,6 +264,14 @@ export const CartProvider = ({ children }) => {
     setCartItems(prev => {
       const newItems = { ...prev };
       delete newItems[productId];
+      
+      // Remove from server if logged in
+      if (userId) {
+        CartAPI.removeCartItem(userId, productId).catch(error => {
+          console.error('Error removing item from server cart:', error);
+        });
+      }
+      
       return newItems;
     });
   };
@@ -192,6 +280,13 @@ export const CartProvider = ({ children }) => {
     console.log('Clearing cart');
     setCartItems({});
     storageHelpers.removeFromStorage('kasoowaCart');
+    
+    // Clear on server if logged in
+    if (userId) {
+      CartAPI.clearCart(userId).catch(error => {
+        console.error('Error clearing server cart:', error);
+      });
+    }
   };
 
   const getCartTotal = () => {
@@ -214,7 +309,8 @@ export const CartProvider = ({ children }) => {
       removeFromCart,
       clearCart,
       getCartTotal,
-      getCartItemsCount
+      getCartItemsCount,
+      userId
     }}>
       {children}
     </CartContext.Provider>

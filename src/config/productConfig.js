@@ -6,7 +6,8 @@ export const defaultWeightOptions = [
     { value: '1kg', label: '1kg' },
     { value: '2kg', label: '2kg' },
     { value: '5kg', label: '5kg' },
-    { value: '10kg', label: '10kg' }
+    { value: '10kg', label: '10kg' },
+    { value: '20kg', label: '20kg' }
   ];
   
   export const defaultSizeOptions = [
