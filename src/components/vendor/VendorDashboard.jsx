@@ -28,6 +28,7 @@ import {
   Clipboard,
   MapPin,
   AlertTriangle,
+  User,
   LogOut,
 } from "lucide-react";
 
@@ -795,6 +796,13 @@ const VendorDashboard = () => {
           >
             <Store className="h-4 w-4 mr-1" />
             Domain Settings
+          </Link>
+          <Link
+            to="/vendor/settings"
+            className="text-green-600 hover:text-green-700 flex items-center text-sm"
+          >
+            <User className="h-4 w-4 mr-1" />
+            Account Settings
           </Link>
           <button
             onClick={handleLogout}

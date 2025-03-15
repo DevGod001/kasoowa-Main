@@ -1,5 +1,6 @@
 // src/components/vendor/VendorWallet.jsx
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   Clock,
@@ -9,7 +10,6 @@ import {
   ArrowUpCircle,
   Wallet,
 } from "lucide-react";
-import { nigerianBanks } from "../../config/countryData";
 
 const VendorWallet = () => {
   // State for wallet data
@@ -24,6 +24,12 @@ const VendorWallet = () => {
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
   const [withdrawalAmount, setWithdrawalAmount] = useState("");
   const [withdrawalMethod, setWithdrawalMethod] = useState("bank");
+
+  // Bank account selection state
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [selectedBankAccount, setSelectedBankAccount] = useState(null);
+
+  // These states will be set from the selected bank account
   const [withdrawalAccount, setWithdrawalAccount] = useState("");
   const [withdrawalBank, setWithdrawalBank] = useState("");
   const [withdrawalBankCode, setWithdrawalBankCode] = useState("");
@@ -32,39 +38,71 @@ const VendorWallet = () => {
   // Get user from auth context
   const { user } = useAuth();
 
-  // User's registered bank details
-  const [registeredBankDetails, setRegisteredBankDetails] = useState(null);
-
-  // Load vendor's bank details from registration
+  // Load bank accounts
   useEffect(() => {
-    const loadVendorDetails = () => {
+    const loadBankAccounts = async () => {
       try {
-        const vendors = JSON.parse(localStorage.getItem("vendors") || "[]");
-        const currentVendor = vendors.find((vendor) => vendor.id === user.id);
+        const token = localStorage.getItem("kasoowaAuthToken");
+        const userId = localStorage.getItem("userId");
 
-        if (currentVendor) {
-          setRegisteredBankDetails({
-            bankName: currentVendor.bankName || "",
-            bankCode: currentVendor.bankCode || "",
-            accountNumber: currentVendor.accountNumber || "",
-            accountName: currentVendor.accountName || "",
-          });
+        if (token && userId) {
+          // Try API first
+          try {
+            const response = await fetch(
+              `${window.location.origin}/api/user/bank-accounts`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              }
+            );
 
-          // Pre-fill the withdrawal form with registered bank details
-          setWithdrawalBank(currentVendor.bankName || "");
-          setWithdrawalBankCode(currentVendor.bankCode || "");
-          setWithdrawalAccount(currentVendor.accountNumber || "");
-          setWithdrawalAccountName(currentVendor.accountName || "");
+            if (response.ok) {
+              const data = await response.json();
+              setBankAccounts(data);
+
+              // Set primary account as selected if available
+              const primaryAccount = data.find((acc) => acc.is_primary);
+              if (primaryAccount) {
+                setSelectedBankAccount(primaryAccount.id);
+                setWithdrawalBank(primaryAccount.bank_name);
+                setWithdrawalBankCode(primaryAccount.bank_code);
+                setWithdrawalAccount(primaryAccount.account_number);
+                setWithdrawalAccountName(primaryAccount.account_name);
+              }
+            } else {
+              throw new Error("API request failed");
+            }
+          } catch (apiError) {
+            console.warn(
+              "API not available, falling back to localStorage:",
+              apiError
+            );
+
+            // Fallback to localStorage
+            const key = `vendor_bank_accounts_${userId}`;
+            const storedAccounts = JSON.parse(
+              localStorage.getItem(key) || "[]"
+            );
+            setBankAccounts(storedAccounts);
+
+            // Set primary account as selected if available
+            const primaryAccount = storedAccounts.find((acc) => acc.is_primary);
+            if (primaryAccount) {
+              setSelectedBankAccount(primaryAccount.id);
+              setWithdrawalBank(primaryAccount.bank_name);
+              setWithdrawalBankCode(primaryAccount.bank_code);
+              setWithdrawalAccount(primaryAccount.account_number);
+              setWithdrawalAccountName(primaryAccount.account_name);
+            }
+          }
         }
       } catch (error) {
-        console.error("Error loading vendor details:", error);
+        console.error("Error loading bank accounts:", error);
+        setBankAccounts([]);
       }
     };
 
-    if (user && user.id) {
-      loadVendorDetails();
-    }
-  }, [user]);
+    loadBankAccounts();
+  }, []);
 
   // Load wallet data on component mount and when orders change
   useEffect(() => {
@@ -200,37 +238,9 @@ const VendorWallet = () => {
     return () => window.removeEventListener("storage", handleStorageChange);
   }, [user.id]);
 
-  // Format account number input (only allow numbers and limit to standard length)
-  const handleAccountNumberChange = (e) => {
-    const value = e.target.value.replace(/\D/g, ""); // Only allow numbers
-    // Limit to 10 digits (standard for Nigerian accounts)
-    if (value.length <= 10) {
-      setWithdrawalAccount(value);
-    }
-  };
-
-  // Format account name input (only allow letters, spaces and some special characters)
-  const handleAccountNameChange = (e) => {
-    const value = e.target.value.replace(/[^a-zA-Z\s\-']/g, ""); // Only allow letters, spaces, hyphens and apostrophes
-    setWithdrawalAccountName(value);
-  };
-
   // Open withdrawal modal with pre-filled bank details
   const openWithdrawalModal = () => {
-    // Pre-fill with registered bank details if available
-    if (registeredBankDetails) {
-      setWithdrawalBank(registeredBankDetails.bankName || "");
-      setWithdrawalBankCode(registeredBankDetails.bankCode || "");
-      setWithdrawalAccount(registeredBankDetails.accountNumber || "");
-      setWithdrawalAccountName(registeredBankDetails.accountName || "");
-    } else {
-      // Default values if no registered details
-      setWithdrawalBank("");
-      setWithdrawalBankCode("");
-      setWithdrawalAccount("");
-      setWithdrawalAccountName("");
-    }
-
+    // Reset selection
     setWithdrawalAmount("");
     setWithdrawalMethod("bank");
     setIsWithdrawalModalOpen(true);
@@ -253,6 +263,21 @@ const VendorWallet = () => {
       return;
     }
 
+    // Validate bank account selection
+    if (withdrawalMethod === "bank") {
+      if (bankAccounts.length === 0) {
+        alert(
+          "Please add at least one bank account in Settings before making a withdrawal"
+        );
+        return;
+      }
+
+      if (!selectedBankAccount) {
+        alert("Please select a bank account for withdrawal");
+        return;
+      }
+    }
+
     // Check if amount is available
     if (amount > walletBalance) {
       alert(
@@ -260,24 +285,6 @@ const VendorWallet = () => {
           walletBalance.toLocaleString()
       );
       return;
-    }
-
-    // Validate account details
-    if (withdrawalMethod === "bank") {
-      if (!withdrawalAccount || withdrawalAccount.length < 10) {
-        alert("Please provide a valid account number (10 digits)");
-        return;
-      }
-
-      if (!withdrawalBank) {
-        alert("Please select your bank");
-        return;
-      }
-
-      if (!withdrawalAccountName) {
-        alert("Please provide the account name");
-        return;
-      }
     }
 
     // Create withdrawal request
@@ -755,95 +762,87 @@ const VendorWallet = () => {
               <div className="overflow-y-auto pr-2 flex-1">
                 {withdrawalMethod === "bank" && (
                   <>
-                    {registeredBankDetails ? (
-                      <div className="mb-4 bg-green-50 p-3 rounded-md">
-                        <p className="text-sm font-medium text-green-700 mb-2">
-                          Using registered bank details:
-                        </p>
-                        <p className="text-sm text-green-600">
-                          {registeredBankDetails.bankName} -{" "}
-                          {registeredBankDetails.accountNumber}
-                        </p>
-                        <p className="text-sm text-green-600">
-                          Account Name: {registeredBankDetails.accountName}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-yellow-600 mb-2">
-                        No registered bank details found. Please enter your bank
-                        details below:
-                      </p>
-                    )}
-
+                    {/* Bank Account Selection */}
                     <div className="mb-4">
-                      <label
-                        htmlFor="withdrawalBank"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Bank Name
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Select Bank Account
                       </label>
-                      <select
-                        id="withdrawalBank"
-                        value={withdrawalBankCode}
-                        onChange={(e) => {
-                          const selectedBank = nigerianBanks.find(
-                            (bank) => bank.code === e.target.value
-                          );
-                          setWithdrawalBankCode(e.target.value);
-                          setWithdrawalBank(selectedBank?.name || "");
-                        }}
-                        className="w-full p-2 border rounded-md"
-                        required
-                      >
-                        <option value="">Select Bank</option>
-                        {nigerianBanks.map((bank) => (
-                          <option key={bank.code} value={bank.code}>
-                            {bank.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
 
-                    <div className="mb-4">
-                      <label
-                        htmlFor="withdrawalAccount"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Account Number
-                      </label>
-                      <input
-                        type="text"
-                        id="withdrawalAccount"
-                        value={withdrawalAccount}
-                        onChange={handleAccountNumberChange}
-                        className="w-full p-2 border rounded-md"
-                        placeholder="Enter 10-digit account number"
-                        maxLength={10}
-                        required
-                      />
-                      {withdrawalAccount && withdrawalAccount.length !== 10 && (
-                        <p className="mt-1 text-xs text-red-500">
-                          Account number must be 10 digits
-                        </p>
+                      {bankAccounts.length > 0 ? (
+                        <div className="space-y-2">
+                          {bankAccounts.map((account) => (
+                            <div key={account.id} className="relative">
+                              <input
+                                type="radio"
+                                id={`account-${account.id}`}
+                                name="bankAccount"
+                                value={account.id}
+                                checked={selectedBankAccount === account.id}
+                                onChange={() => {
+                                  setSelectedBankAccount(account.id);
+                                  setWithdrawalBank(account.bank_name);
+                                  setWithdrawalBankCode(account.bank_code);
+                                  setWithdrawalAccount(account.account_number);
+                                  setWithdrawalAccountName(
+                                    account.account_name
+                                  );
+                                }}
+                                className="sr-only" // Hide the actual radio input
+                              />
+                              <label
+                                htmlFor={`account-${account.id}`}
+                                className={`block p-3 rounded-md border cursor-pointer ${
+                                  selectedBankAccount === account.id
+                                    ? "border-green-500 bg-green-50"
+                                    : "border-gray-300 hover:border-gray-400"
+                                }`}
+                              >
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                    <p className="font-medium">
+                                      {account.bank_name}
+                                    </p>
+                                    <p className="text-sm text-gray-600">
+                                      {account.account_number}
+                                    </p>
+                                    <p className="text-sm text-gray-600">
+                                      {account.account_name}
+                                    </p>
+                                  </div>
+                                  {selectedBankAccount === account.id && (
+                                    <div className="h-5 w-5 bg-green-600 rounded-full flex items-center justify-center">
+                                      <svg
+                                        className="h-3 w-3 text-white"
+                                        fill="currentColor"
+                                        viewBox="0 0 20 20"
+                                      >
+                                        <path
+                                          fillRule="evenodd"
+                                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                          clipRule="evenodd"
+                                        />
+                                      </svg>
+                                    </div>
+                                  )}
+                                </div>
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-4 bg-yellow-50 rounded-md">
+                          <p className="text-yellow-700 text-sm">
+                            No bank accounts found. Please add bank accounts in
+                            your settings before making a withdrawal.
+                          </p>
+                          <Link
+                            to="/vendor/settings"
+                            className="mt-2 inline-block text-sm text-green-600 hover:underline"
+                          >
+                            Go to Settings
+                          </Link>
+                        </div>
                       )}
-                    </div>
-
-                    <div className="mb-4">
-                      <label
-                        htmlFor="withdrawalAccountName"
-                        className="block text-sm font-medium text-gray-700 mb-1"
-                      >
-                        Account Name
-                      </label>
-                      <input
-                        type="text"
-                        id="withdrawalAccountName"
-                        value={withdrawalAccountName}
-                        onChange={handleAccountNameChange}
-                        className="w-full p-2 border rounded-md"
-                        placeholder="Enter account name"
-                        required
-                      />
                     </div>
                   </>
                 )}

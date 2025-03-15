@@ -7,10 +7,12 @@ import { CartProvider } from './contexts/CartContext';
 import { OrderProvider } from './contexts/OrderContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { AffiliateProvider } from './contexts/AffiliateContext';
+import { ChatProvider } from './contexts/ChatContext';
 import App from './App';
 import './index.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
+
 root.render(
   <React.StrictMode>
     <BrowserRouter>
@@ -19,7 +21,9 @@ root.render(
           <CartProvider>
             <OrderProvider>
               <AffiliateProvider>
-                <App />
+                <ChatProvider>
+                  <App />
+                </ChatProvider>
               </AffiliateProvider>
             </OrderProvider>
           </CartProvider>
