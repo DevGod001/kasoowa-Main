@@ -23,7 +23,7 @@ const storageHelpers = {
         totalLength: stringData.length,
         timestamp: new Date().getTime()
       }));
-      
+
       // Store each chunk
       for (let i = 0; i < chunks; i++) {
         const start = i * 1000000;
@@ -31,11 +31,11 @@ const storageHelpers = {
         const chunk = stringData.substring(start, end);
         localStorage.setItem(`${key}_chunk_${i}`, chunk);
       }
-      
+
       return true;
     } catch (error) {
       console.error('Error saving to storage:', error);
-      
+
       // Clean up any partial saves
       try {
         const info = JSON.parse(localStorage.getItem(`${key}_info`));
@@ -48,27 +48,27 @@ const storageHelpers = {
       } catch (e) {
         // Ignore cleanup errors
       }
-      
+
       return false;
     }
   },
-  
+
   // Load data from chunks
   loadFromStorage: (key) => {
     try {
       // Check if we're using chunks
       const infoString = localStorage.getItem(`${key}_info`);
-      
+
       // If no chunk info, try regular storage
       if (!infoString) {
         const directData = localStorage.getItem(key);
         return directData ? JSON.parse(directData) : null;
       }
-      
+
       // Otherwise, load and combine chunks
       const info = JSON.parse(infoString);
       let fullData = '';
-      
+
       for (let i = 0; i < info.chunks; i++) {
         const chunk = localStorage.getItem(`${key}_chunk_${i}`);
         if (!chunk) {
@@ -77,20 +77,20 @@ const storageHelpers = {
         }
         fullData += chunk;
       }
-      
+
       return JSON.parse(fullData);
     } catch (error) {
       console.error('Error loading from storage:', error);
       return null;
     }
   },
-  
+
   // Clean up all chunks for a key
   removeFromStorage: (key) => {
     try {
       // Check if we're using chunks
       const infoString = localStorage.getItem(`${key}_info`);
-      
+
       if (infoString) {
         const info = JSON.parse(infoString);
         // Remove all chunks
@@ -99,7 +99,7 @@ const storageHelpers = {
         }
         localStorage.removeItem(`${key}_info`);
       }
-      
+
       // Remove direct item regardless
       localStorage.removeItem(key);
     } catch (error) {
@@ -116,13 +116,13 @@ export const CartProvider = ({ children }) => {
     console.log('Initial cart from storage:', savedCart);
     return savedCart || {};
   });
-  
+
   // Add userId state for server sync
   const [userId, setUserId] = useState(null);
-  
+
   // Track if initial server sync has been done
   const initialSyncDone = useRef(false);
-  
+
   // Get user ID from JWT token on mount
   useEffect(() => {
     const token = localStorage.getItem('kasoowaAuthToken');
@@ -139,7 +139,7 @@ export const CartProvider = ({ children }) => {
       }
     }
   }, []);
-  
+
   // Initial sync with server when userId is set for the first time
   useEffect(() => {
     const syncWithServer = async () => {
@@ -147,7 +147,7 @@ export const CartProvider = ({ children }) => {
         try {
           console.log('Trying to load cart from server for user:', userId);
           const serverCart = await CartAPI.getCart(userId);
-          
+
           if (serverCart && Object.keys(serverCart).length > 0) {
             console.log('Loaded cart from server:', serverCart);
             setCartItems(serverCart);
@@ -156,7 +156,7 @@ export const CartProvider = ({ children }) => {
             console.log('No cart on server, syncing local cart');
             await CartAPI.saveCart(userId, cartItems);
           }
-          
+
           // Mark initial sync as done
           initialSyncDone.current = true;
         } catch (error) {
@@ -164,7 +164,7 @@ export const CartProvider = ({ children }) => {
         }
       }
     };
-    
+
     if (userId) {
       syncWithServer();
     }
@@ -178,7 +178,7 @@ export const CartProvider = ({ children }) => {
     if (!success) {
       console.warn('Failed to save cart to storage. Using memory-only storage for now.');
     }
-    
+
     // Sync with server if user is logged in and initial sync is done
     if (userId && initialSyncDone.current) {
       console.log('Syncing cart with server for user:', userId);
@@ -198,7 +198,8 @@ export const CartProvider = ({ children }) => {
         variant: product.selectedVariant || null,
         price: product.selectedVariant ? product.selectedVariant.price : product.price,
         title: product.title,
-        imageUrl: product.imageUrl || product.image || '/api/placeholder/80/80',
+        // UPDATED: Check for image_url first, then other image properties
+        imageUrl: product.image_url || product.imageUrl || product.image || null,
         description: product.description,
         weight: product.selectedVariant?.weight || null,
         size: product.selectedVariant?.size || null,
@@ -221,7 +222,7 @@ export const CartProvider = ({ children }) => {
         delete newItems[productId];
         return newItems;
       });
-      
+
       // Also remove from server if logged in
       if (userId) {
         CartAPI.removeCartItem(userId, productId).catch(error => {
@@ -232,7 +233,7 @@ export const CartProvider = ({ children }) => {
       setCartItems(prev => {
         const item = prev[productId];
         const stockLimit = item.stockQuantity;
-        
+
         // Check if new quantity would exceed stock
         if (quantity > stockLimit) {
           alert(`Cannot exceed available stock of ${stockLimit} items`);
@@ -243,7 +244,7 @@ export const CartProvider = ({ children }) => {
           ...item,
           quantity
         };
-        
+
         // Update on server if logged in
         if (userId) {
           CartAPI.updateCartItem(userId, productId, updatedItem).catch(error => {
@@ -264,14 +265,14 @@ export const CartProvider = ({ children }) => {
     setCartItems(prev => {
       const newItems = { ...prev };
       delete newItems[productId];
-      
+
       // Remove from server if logged in
       if (userId) {
         CartAPI.removeCartItem(userId, productId).catch(error => {
           console.error('Error removing item from server cart:', error);
         });
       }
-      
+
       return newItems;
     });
   };
@@ -280,7 +281,7 @@ export const CartProvider = ({ children }) => {
     console.log('Clearing cart');
     setCartItems({});
     storageHelpers.removeFromStorage('kasoowaCart');
-    
+
     // Clear on server if logged in
     if (userId) {
       CartAPI.clearCart(userId).catch(error => {

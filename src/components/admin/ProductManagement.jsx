@@ -52,6 +52,12 @@ const ProductManagementContent = ({
   // Updated handleAddProduct function for ProductManagement component
   const handleAddProduct = async (productData) => {
     try {
+      // Log the form data
+      console.log("Form data being submitted:");
+      for (let [key, value] of productData.entries()) {
+        console.log(key + ": " + value);
+      }
+      
       // Call the addProduct function from context which now uses the API
       await addProduct(productData);
 

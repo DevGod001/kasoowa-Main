@@ -1,229 +1,171 @@
+// src/contexts/ProductContext.jsx
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { ProductAPI } from '../services/api';
-
-// Define the event name directly here
-const PRODUCTS_UPDATED_EVENT = 'kasoowaProductsUpdated';
+import { useAuth } from './AuthContext';
 
 const ProductContext = createContext();
+
+// API URL
+const API_URL = '/api'; // Adjust if your API base URL is different
 
 export const ProductProvider = ({ children }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { token } = useAuth();
 
-  // Fetch products from API on component mount
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setLoading(true);
-      try {
-        const fetchedProducts = await ProductAPI.getAllProducts();
-        console.log("Fetched products from API:", fetchedProducts);
-        setProducts(fetchedProducts);
-        
-        // Also save to localStorage as fallback for offline access
-        localStorage.setItem('kasoowaProducts', JSON.stringify(fetchedProducts));
-        
-        setLoading(false);
-        setError(null);
-      } catch (err) {
-        console.error("Error fetching products from API:", err);
-        setError('Failed to load products');
-        
-        // Try to load from localStorage as fallback
-        const savedProducts = localStorage.getItem('kasoowaProducts');
-        if (savedProducts) {
-          console.log("Loading products from localStorage fallback");
-          setProducts(JSON.parse(savedProducts));
-        }
-        
-        setLoading(false);
-      }
-    };
-
-    fetchProducts();
-    
-    // Poll for product updates every 5 minutes
-    const intervalId = setInterval(fetchProducts, 5 * 60 * 1000);
-    
-    return () => clearInterval(intervalId);
-  }, []);
-
-  // Listen for product updates
-  useEffect(() => {
-    const handleProductUpdate = () => {
-      console.log("ProductContext: Received kasoowaProductsUpdated event");
-      // Reload products from API when update event is triggered
-      ProductAPI.getAllProducts()
-        .then(fetchedProducts => {
-          console.log("ProductContext: Successfully fetched updated products:", fetchedProducts.length);
-          setProducts(fetchedProducts);
-          localStorage.setItem('kasoowaProducts', JSON.stringify(fetchedProducts));
-        })
-        .catch(err => {
-          console.error("ProductContext: Error fetching products after update:", err);
-        });
-    };
-    
-    // Listen for our custom product update event
-    console.log("ProductContext: Adding event listener for", PRODUCTS_UPDATED_EVENT);
-    window.addEventListener(PRODUCTS_UPDATED_EVENT, handleProductUpdate);
-    
-    // Also listen for storage events for cross-tab updates
-    const handleStorageChange = (e) => {
-      if (e.key === 'kasoowaProducts' || e.key === 'kasoowaForceRefresh') {
-        console.log("ProductContext: Storage event detected for products");
-        handleProductUpdate();
-      }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
-    return () => {
-      console.log("ProductContext: Removing event listeners");
-      window.removeEventListener(PRODUCTS_UPDATED_EVENT, handleProductUpdate);
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
-
-  // Add product with API integration
-  const addProduct = useCallback(async (productData) => {
+  // Fetch all products
+  const fetchProducts = useCallback(async () => {
     try {
-      const newProduct = await ProductAPI.addProduct(productData);
+      setLoading(true);
+      const response = await fetch(`${API_URL}/products`);
       
-      // Update local state
-      setProducts(prev => [...prev, newProduct]);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch products: ${response.status}`);
+      }
       
-      // Update localStorage
-      const updatedProducts = [...products, newProduct];
-      localStorage.setItem('kasoowaProducts', JSON.stringify(updatedProducts));
+      const data = await response.json();
+      setProducts(data);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch products on component mount
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  // Add a new product
+  const addProduct = async (productData) => {
+    try {
+      // Debug logging for FormData before sending
+      console.log("Sending to API - FormData entries:");
+      for (let [key, value] of productData.entries()) {
+        console.log(`${key}: ${value instanceof File ? value.name : value}`);
+      }
       
-      // Notify other components
-      window.dispatchEvent(new CustomEvent(PRODUCTS_UPDATED_EVENT));
+      // Make API call
+      const response = await fetch(`${API_URL}/products`, {
+        method: 'POST',
+        body: productData,
+        // Do NOT set Content-Type header, the browser will set it automatically with boundary
+      });
       
+      // Log response status
+      console.log(`API Response status: ${response.status}`);
+      
+      // If response is not ok, try to get error message from response
+      if (!response.ok) {
+        let errorMessage = `Request failed with status ${response.status}`;
+        try {
+          const errorData = await response.text();
+          console.error("API Error Response:", errorData);
+          if (errorData) {
+            errorMessage = `${errorMessage}: ${errorData}`;
+          }
+        } catch (e) {
+          console.error("Error reading error response:", e);
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const newProduct = await response.json();
+      setProducts(prevProducts => [...prevProducts, newProduct]);
       return newProduct;
     } catch (error) {
       console.error("Error adding product:", error);
       throw error;
     }
-  }, [products]);
+  };
 
-  // Update product with API integration
-  const updateProduct = useCallback(async (productId, updatedData) => {
+  // Update a product
+  const updateProduct = async (productId, productData) => {
     try {
-      await ProductAPI.updateProduct(productId, updatedData);
+      // Debug logging for FormData before sending
+      console.log("Updating product - FormData entries:");
+      for (let [key, value] of productData.entries()) {
+        console.log(`${key}: ${value instanceof File ? value.name : value}`);
+      }
       
-      // Update local state
-      setProducts(prev =>
-        prev.map(product =>
-          String(product.id) === String(productId) ? { ...product, ...updatedData } : product
-        )
-      );
+      const response = await fetch(`${API_URL}/products/${productId}`, {
+        method: 'PUT',
+        body: productData,
+        // Do NOT set Content-Type header
+      });
       
-      // Update localStorage
-      const updatedProducts = products.map(product => 
-        String(product.id) === String(productId) ? { ...product, ...updatedData } : product
-      );
-      localStorage.setItem('kasoowaProducts', JSON.stringify(updatedProducts));
+      if (!response.ok) {
+        let errorMessage = `Request failed with status ${response.status}`;
+        try {
+          const errorData = await response.text();
+          console.error("API Error Response:", errorData);
+          if (errorData) {
+            errorMessage = `${errorMessage}: ${errorData}`;
+          }
+        } catch (e) {
+          console.error("Error reading error response:", e);
+        }
+        throw new Error(errorMessage);
+      }
       
-      // Notify other components
-      window.dispatchEvent(new CustomEvent(PRODUCTS_UPDATED_EVENT));
+      await fetchProducts(); // Refresh products after update
+      return productId;
     } catch (error) {
       console.error("Error updating product:", error);
       throw error;
     }
-  }, [products]);
+  };
 
-  // Delete product with API integration
-  const deleteProduct = useCallback(async (productId) => {
+  // Delete a product
+  const deleteProduct = async (productId) => {
     try {
-      await ProductAPI.deleteProduct(productId);
+      const response = await fetch(`${API_URL}/products/${productId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+      });
       
-      // Update local state
-      setProducts(prev => prev.filter(product => String(product.id) !== String(productId)));
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
       
-      // Update localStorage
-      const updatedProducts = products.filter(product => String(product.id) !== String(productId));
-      localStorage.setItem('kasoowaProducts', JSON.stringify(updatedProducts));
-      
-      // Notify other components
-      window.dispatchEvent(new CustomEvent(PRODUCTS_UPDATED_EVENT));
+      setProducts(prevProducts => prevProducts.filter(product => product.id !== productId));
+      return productId;
     } catch (error) {
       console.error("Error deleting product:", error);
       throw error;
     }
-  }, [products]);
+  };
 
-  // Get vendor products
-  const getVendorProducts = useCallback(
-    (vendorId) => {
-      return products.filter((product) => product.vendorId === vendorId);
-    },
-    [products]
-  );
-
-  // Get all vendors
-  const getAllVendors = useCallback(() => {
-    const vendorMap = new Map();
-    products.forEach((product) => {
-      if (product.vendorId && !vendorMap.has(product.vendorId)) {
-        vendorMap.set(product.vendorId, {
-          id: product.vendorId,
-          name: product.vendorName,
-          storeSlug: product.vendorSlug,
-          productCount: 1,
-        });
-      } else if (product.vendorId) {
-        const vendor = vendorMap.get(product.vendorId);
-        vendorMap.set(product.vendorId, {
-          ...vendor,
-          productCount: vendor.productCount + 1,
-        });
-      }
-    });
-    return Array.from(vendorMap.values());
-  }, [products]);
-
-  // Get products by category
-  const getProductsByCategory = useCallback(
-    (category) => {
-      return products.filter((product) => product.category === category);
-    },
-    [products]
-  );
-
-  // Search products
-  const searchProducts = useCallback(
-    (searchTerm) => {
-      const term = searchTerm.toLowerCase();
-      return products.filter(
-        (product) =>
-          product.title.toLowerCase().includes(term) ||
-          product.description.toLowerCase().includes(term) ||
-          product.category.toLowerCase().includes(term)
-      );
-    },
-    [products]
-  );
-
-  const value = {
-    products,
-    setProducts,
-    loading,
-    error,
-    addProduct,
-    getVendorProducts,
-    getAllVendors,
-    updateProduct,
-    deleteProduct,
-    getProductsByCategory,
-    searchProducts,
+  // Get a product by ID
+  const getProductById = (productId) => {
+    return products.find(product => product.id === productId);
   };
 
   return (
-    <ProductContext.Provider value={value}>{children}</ProductContext.Provider>
+    <ProductContext.Provider
+      value={{
+        products,
+        loading,
+        error,
+        fetchProducts,
+        addProduct,
+        updateProduct,
+        deleteProduct,
+        getProductById,
+      }}
+    >
+      {children}
+    </ProductContext.Provider>
   );
 };
 
+// Custom hook to use the product context
 export const useProducts = () => {
   const context = useContext(ProductContext);
   if (!context) {
@@ -232,7 +174,4 @@ export const useProducts = () => {
   return context;
 };
 
-// Export the event name constant for other components to use
-export { PRODUCTS_UPDATED_EVENT };
-
-export default ProductProvider;
+export default ProductContext;

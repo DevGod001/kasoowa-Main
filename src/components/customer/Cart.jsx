@@ -20,7 +20,6 @@ const Cart = ({
 
   // Handle checkout process
   const handleCheckoutStart = () => {
-    // Log cart items for debugging
     console.log("Starting checkout with items:", cartItems);
     setIsAuthModalOpen(true);
   };
@@ -43,11 +42,20 @@ const Cart = ({
       enhancedItem.vendorId = String(enhancedItem.vendorId);
     }
 
-    // Log each prepared item for debugging
-    console.log(`Prepared cart item ${item.id}:`, enhancedItem);
-
     return enhancedItem;
   });
+
+  // FIXED: Get image with proper fallback handling for both snake_case and camelCase properties
+  const getItemImage = (item) => {
+    // Try all possible image sources in order of preference
+    const image = item.image_url || item.imageUrl;
+    
+    // If we have an image, return it directly (without modification)
+    if (image) return image;
+    
+    // If no image, return null (will show ShoppingBag icon)
+    return null;
+  };
 
   return (
     <>
@@ -95,15 +103,32 @@ const Cart = ({
                 >
                   <div className="flex p-4">
                     {/* Item Image */}
-                    <div className="w-20 h-20 rounded-md overflow-hidden flex-shrink-0">
-                      <img
-                        src={item.imageUrl || "/api/placeholder/80/80"}
-                        alt={item.title}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.src = "/api/placeholder/80/80";
-                        }}
-                      />
+                    <div className="w-20 h-20 rounded-md overflow-hidden flex-shrink-0 bg-gray-100">
+                      {/* Check for image source */}
+                      {getItemImage(item) ? (
+                        <img
+                          src={getItemImage(item)}
+                          alt={item.title}
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            // If image fails to load, show bag icon
+                            const container = e.target.parentNode;
+                            container.innerHTML = `
+                              <div class="w-full h-full flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400">
+                                  <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                                  <line x1="3" y1="6" x2="21" y2="6"></line>
+                                  <path d="M16 10a4 4 0 0 1-8 0"></path>
+                                </svg>
+                              </div>
+                            `;
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ShoppingBag className="h-8 w-8 text-gray-400" />
+                        </div>
+                      )}
                     </div>
 
                     {/* Item Details */}

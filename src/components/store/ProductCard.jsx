@@ -10,6 +10,19 @@ const ProductCard = ({ product }) => {
       ? Math.min(...product.variants.map((v) => Number(v.price)))
       : Number(product.price);
 
+  // Helper function to get the correct image URL
+  const getImageUrl = (url) => {
+    if (!url) return "/api/placeholder/400/400";
+    
+    // If URL already includes http or starts with /, use it as is
+    if (url.startsWith('http') || url.startsWith('/')) {
+      return url;
+    }
+    
+    // Otherwise, add the uploads path
+    return `/uploads/${url}`;
+  };
+
   return (
     <Link
       to={`/product/${product.id}`}
@@ -18,10 +31,11 @@ const ProductCard = ({ product }) => {
       {/* Image Section */}
       <div className="relative w-full h-48 bg-gray-200 overflow-hidden">
         <img
-          src={product.imageUrl || "/api/placeholder/400/400"}
+          src={getImageUrl(product.image_url || product.imageUrl)}
           alt={product.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
+            console.log("Image load error for:", e.target.src);
             e.target.src = "/api/placeholder/400/400";
           }}
         />

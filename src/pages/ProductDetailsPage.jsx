@@ -16,9 +16,9 @@ import Cart from "../components/customer/Cart";
 const PRODUCTS_UPDATED_EVENT = "kasoowaProductsUpdated";
 
 const ProductDetailsPage = () => {
-  const { storeSlug, productId } = useParams();
+  const { productId } = useParams();
   const navigate = useNavigate();
-  const { products } = useProducts();
+  const { products, loading } = useProducts();
   const { addToCart, cartItems, updateQuantity, removeFromCart } = useCart();
 
   const [selectedVariant, setSelectedVariant] = useState(null);
@@ -26,58 +26,61 @@ const ProductDetailsPage = () => {
   const [addedToCart, setAddedToCart] = useState(false);
   const [currentStock, setCurrentStock] = useState(0);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isAdding, setIsAdding] = useState(false); // To prevent page shaking
 
-  // Find the product
-  const product = products.find((p) => p.id === productId);
+  // Find the product - make sure to use string comparison for IDs
+  const product = products.find((p) => String(p.id) === String(productId));
 
   // Find related products
-  const relatedProducts = products
-    .filter((p) => p.category === product?.category && p.id !== productId)
-    .slice(0, 4);
+  const relatedProducts = product
+    ? products
+        .filter((p) => p.category === product?.category && String(p.id) !== String(productId))
+        .slice(0, 4)
+    : [];
 
-  // Update stock when variant changes
+  // Update stock when variant changes or product changes
   useEffect(() => {
     if (product) {
       if (selectedVariant) {
-        setCurrentStock(Number(selectedVariant.stockQuantity));
+        const stockQuantity = Number(selectedVariant.stock_quantity) || Number(selectedVariant.stockQuantity) || 0;
+        setCurrentStock(stockQuantity);
       } else if (product.variants?.length > 0) {
+        // Calculate total stock across all variants
         const totalStock = product.variants.reduce(
-          (total, v) => Number(total) + Number(v.stockQuantity),
+          (total, v) => {
+            const variantStock = Number(v.stock_quantity) || Number(v.stockQuantity) || 0;
+            return Number(total) + variantStock;
+          },
           0
         );
         setCurrentStock(totalStock);
       } else {
-        setCurrentStock(Number(product.stockQuantity) || 0);
+        // Use product's own stock
+        const stockQuantity = Number(product.stock_quantity) || Number(product.stockQuantity) || 0;
+        setCurrentStock(stockQuantity);
       }
     }
   }, [product, selectedVariant]);
 
-  // Direct response to stock changes
+  // Handle stock updates from other parts of the app
   useEffect(() => {
-    // Listen for storage events
     const handleProductUpdate = () => {
       console.log("ProductDetailPage: Product update detected");
 
-      // Get the latest products from localStorage
       const updatedProductsJson = localStorage.getItem("kasoowaProducts");
       if (!updatedProductsJson) return;
 
       try {
         const updatedProducts = JSON.parse(updatedProductsJson);
-
-        // Find the current product with updated stock
         const updatedProduct = updatedProducts.find(
           (p) => String(p.id) === String(productId)
         );
 
         if (updatedProduct) {
-          console.log(
-            "ProductDetailPage: Found updated product",
-            updatedProduct.id
-          );
+          console.log("ProductDetailPage: Found updated product", updatedProduct.id);
           console.log("Current stock before update:", currentStock);
 
-          // Force immediate stock update
+          // Update stock based on selected variant or total
           if (selectedVariant) {
             const updatedVariant = updatedProduct.variants?.find(
               (v) => String(v.id) === String(selectedVariant.id)
@@ -86,31 +89,33 @@ const ProductDetailsPage = () => {
             if (updatedVariant) {
               console.log("ProductDetailPage: Found updated variant");
               setSelectedVariant(updatedVariant);
-              setCurrentStock(Number(updatedVariant.stockQuantity));
+              const stockQuantity = Number(updatedVariant.stock_quantity) || 
+                                   Number(updatedVariant.stockQuantity) || 0;
+              setCurrentStock(stockQuantity);
             }
           } else if (updatedProduct.variants?.length > 0) {
+            // Calculate total stock across all variants
             const totalStock = updatedProduct.variants.reduce(
-              (total, v) => Number(total) + Number(v.stockQuantity),
+              (total, v) => {
+                const variantStock = Number(v.stock_quantity) || Number(v.stockQuantity) || 0;
+                return Number(total) + variantStock;
+              },
               0
             );
             setCurrentStock(totalStock);
           } else {
-            setCurrentStock(Number(updatedProduct.stockQuantity));
+            // Use product's own stock
+            const stockQuantity = Number(updatedProduct.stock_quantity) || 
+                                 Number(updatedProduct.stockQuantity) || 0;
+            setCurrentStock(stockQuantity);
           }
-
-          console.log(
-            "Stock updated to:",
-            selectedVariant
-              ? selectedVariant.stockQuantity
-              : updatedProduct.stockQuantity
-          );
         }
       } catch (error) {
         console.error("Error updating product details:", error);
       }
     };
 
-    // Listen for both custom events and storage events
+    // Listen for product updates
     window.addEventListener(PRODUCTS_UPDATED_EVENT, handleProductUpdate);
     window.addEventListener("storage", (e) => {
       if (e.key === "kasoowaProducts" || e.key === "kasoowaForceRefresh") {
@@ -118,19 +123,11 @@ const ProductDetailsPage = () => {
       }
     });
 
-    // Clean up
     return () => {
       window.removeEventListener(PRODUCTS_UPDATED_EVENT, handleProductUpdate);
       window.removeEventListener("storage", handleProductUpdate);
     };
   }, [productId, selectedVariant, currentStock]);
-
-  // Force an initial check to ensure we have the latest data
-  useEffect(() => {
-    // Manually trigger a product update check on component mount
-    const event = new CustomEvent(PRODUCTS_UPDATED_EVENT);
-    window.dispatchEvent(event);
-  }, []);
 
   // Calculate items in cart
   const itemInCart = cartItems ? cartItems[productId] : null;
@@ -138,19 +135,27 @@ const ProductDetailsPage = () => {
 
   // Handle back navigation
   const handleGoBack = () => {
-    // Use browser history to go back to the previous page
     if (window.history.length > 1) {
       navigate(-1);
     } else {
-      // Fallback to store page or home if there's no history
-      navigate(storeSlug ? `/store/${storeSlug}` : "/");
+      navigate("/");
     }
   };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto"></div>
+        <h2 className="mt-4 text-lg font-medium text-gray-900">Loading product...</h2>
+      </div>
+    );
+  }
 
   if (!product) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
         <h2 className="text-2xl font-bold text-gray-900">Product not found</h2>
+        <p className="mt-2 text-gray-600">The product you're looking for might have been removed or doesn't exist.</p>
         <button
           onClick={handleGoBack}
           className="mt-4 text-green-600 hover:text-green-700"
@@ -162,6 +167,8 @@ const ProductDetailsPage = () => {
   }
 
   const handleAddToCart = () => {
+    if (isAdding) return; // Prevent multiple clicks
+    
     if (product.variants?.length > 0 && !selectedVariant) {
       alert("Please select a variant");
       return;
@@ -170,15 +177,17 @@ const ProductDetailsPage = () => {
     // Check if adding would exceed stock
     const totalQuantity = inCartQuantity + quantity;
     const maxStock = selectedVariant
-      ? selectedVariant.stockQuantity
-      : product.stockQuantity;
+      ? (Number(selectedVariant.stock_quantity) || Number(selectedVariant.stockQuantity) || 0)
+      : (Number(product.stock_quantity) || Number(product.stockQuantity) || 0);
 
     if (totalQuantity > maxStock) {
       alert(`Cannot exceed available stock of ${maxStock} items`);
       return;
     }
 
-    // Check for affiliate referral from URL or session storage
+    setIsAdding(true); // Prevent repeat clicks
+
+    // Check for affiliate referral
     const queryParams = new URLSearchParams(window.location.search);
     const affiliateId =
       queryParams.get("aff") ||
@@ -186,11 +195,7 @@ const ProductDetailsPage = () => {
       sessionStorage.getItem("referringAffiliateId");
 
     if (affiliateId) {
-      // Store the affiliate ID for attribution during checkout
       sessionStorage.setItem("referringAffiliateId", affiliateId);
-      console.log(
-        `Product added to cart with affiliate referral: ${affiliateId}`
-      );
     }
 
     const productToAdd = {
@@ -201,7 +206,33 @@ const ProductDetailsPage = () => {
 
     addToCart(productToAdd, quantity);
     setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 2000);
+    
+    setTimeout(() => {
+      setAddedToCart(false);
+      setIsAdding(false); // Re-enable the button
+    }, 2000);
+  };
+
+  // Calculate the base price - lowest variant price or product price
+  const calculateBasePrice = () => {
+    if (product.variants && product.variants.length > 0) {
+      // Calculate the lowest price
+      return Math.min(...product.variants.map(v => Number(v.price) || 0));
+    }
+    return Number(product.price);
+  };
+
+  // Get image URL with fallback
+  const getImageUrl = (url) => {
+    if (!url) return '/api/placeholder/600/600';
+    
+    // If URL already includes http or starts with /, use it directly
+    if (url.startsWith('http') || url.startsWith('/')) {
+      return url;
+    }
+    
+    // Otherwise, prepend the domain
+    return `/uploads/${url}`;
   };
 
   return (
@@ -261,12 +292,16 @@ const ProductDetailsPage = () => {
               <div className="aspect-w-4 aspect-h-3 bg-gray-100 rounded-lg overflow-hidden">
                 <img
                   src={
-                    selectedVariant?.imageUrl ||
-                    product.imageUrl ||
-                    "/api/placeholder/600/600"
+                    selectedVariant?.image_url || selectedVariant?.imageUrl
+                      ? getImageUrl(selectedVariant.image_url || selectedVariant.imageUrl)
+                      : getImageUrl(product.image_url || product.imageUrl)
                   }
                   alt={product.title}
                   className="w-full h-[250px] sm:h-[400px] object-contain"
+                  onError={(e) => {
+                    console.log("Image load error for:", e.target.src);
+                    e.target.src = "/api/placeholder/600/600";
+                  }}
                 />
               </div>
 
@@ -279,9 +314,12 @@ const ProductDetailsPage = () => {
                   }`}
                 >
                   <img
-                    src={product.imageUrl || "/api/placeholder/150/150"}
+                    src={getImageUrl(product.image_url || product.imageUrl)}
                     alt="Main product"
                     className="w-full h-14 sm:h-20 object-contain"
+                    onError={(e) => {
+                      e.target.src = "/api/placeholder/150/150";
+                    }}
                   />
                 </button>
                 {product.variants?.map((variant) => (
@@ -295,9 +333,12 @@ const ProductDetailsPage = () => {
                     }`}
                   >
                     <img
-                      src={variant.imageUrl || "/api/placeholder/150/150"}
+                      src={getImageUrl(variant.image_url || variant.imageUrl)}
                       alt={`${variant.size} - ${variant.weight}`}
                       className="w-full h-14 sm:h-20 object-contain"
+                      onError={(e) => {
+                        e.target.src = "/api/placeholder/150/150";
+                      }}
                     />
                   </button>
                 ))}
@@ -322,9 +363,7 @@ const ProductDetailsPage = () => {
                     {product.variants?.length > 0
                       ? selectedVariant
                         ? `₦${Number(selectedVariant.price).toLocaleString()}`
-                        : `From ₦${Math.min(
-                            ...product.variants.map((v) => Number(v.price))
-                          ).toLocaleString()}`
+                        : `From ₦${calculateBasePrice().toLocaleString()}`
                       : `₦${Number(product.price).toLocaleString()}`}
                   </span>
                   <div className="text-xs sm:text-sm">
@@ -335,13 +374,15 @@ const ProductDetailsPage = () => {
                     >
                       {product.variants?.length > 0
                         ? selectedVariant
-                          ? `${selectedVariant.stockQuantity} in stock`
+                          ? `${Number(selectedVariant.stock_quantity) || Number(selectedVariant.stockQuantity) || 0} in stock`
                           : `${product.variants.reduce(
-                              (total, v) =>
-                                Number(total) + Number(v.stockQuantity),
+                              (total, v) => {
+                                const variantStock = Number(v.stock_quantity) || Number(v.stockQuantity) || 0;
+                                return Number(total) + variantStock;
+                              },
                               0
                             )} total in stock`
-                        : `${Number(product.stockQuantity)} in stock`}
+                        : `${Number(product.stock_quantity) || Number(product.stockQuantity) || 0} in stock`}
                     </span>
                     {inCartQuantity > 0 && (
                       <span className="ml-2 text-gray-500">
@@ -382,7 +423,7 @@ const ProductDetailsPage = () => {
                           ₦{Number(variant.price).toLocaleString()}
                         </div>
                         <div className="text-xs sm:text-sm text-gray-500">
-                          {variant.stockQuantity} available
+                          {Number(variant.stock_quantity) || Number(variant.stockQuantity) || 0} available
                         </div>
                       </button>
                     ))}
@@ -440,6 +481,7 @@ const ProductDetailsPage = () => {
               <button
                 onClick={handleAddToCart}
                 disabled={
+                  isAdding || // Prevent multiple clicks
                   (product.variants?.length > 0 && !selectedVariant) ||
                   currentStock === 0 ||
                   currentStock - inCartQuantity === 0
@@ -447,6 +489,8 @@ const ProductDetailsPage = () => {
                 className={`w-full py-3 sm:py-4 px-4 sm:px-6 rounded-lg flex items-center justify-center gap-2 font-semibold transition-all ${
                   addedToCart
                     ? "bg-green-500 text-white"
+                    : isAdding
+                    ? "bg-green-300 text-white cursor-not-allowed"
                     : currentStock === 0
                     ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                     : product.variants?.length > 0 && !selectedVariant
@@ -459,6 +503,8 @@ const ProductDetailsPage = () => {
                     <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                     Added to Cart
                   </>
+                ) : isAdding ? (
+                  "Adding..."
                 ) : currentStock === 0 ? (
                   "Out of Stock"
                 ) : product.variants?.length > 0 && !selectedVariant ? (
@@ -530,11 +576,12 @@ const ProductDetailsPage = () => {
                 >
                   <div className="relative w-full h-32 sm:h-48 bg-gray-200 overflow-hidden">
                     <img
-                      src={
-                        relatedProduct.imageUrl || "/api/placeholder/400/400"
-                      }
+                      src={getImageUrl(relatedProduct.image_url || relatedProduct.imageUrl)}
                       alt={relatedProduct.title}
                       className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        e.target.src = "/api/placeholder/400/400";
+                      }}
                     />
                   </div>
                   <div className="p-3 sm:p-4 flex flex-col flex-1">
@@ -548,16 +595,12 @@ const ProductDetailsPage = () => {
                       <span className="text-sm sm:text-lg font-bold">
                         {relatedProduct.variants &&
                         relatedProduct.variants.length > 0
-                          ? `₦${parseFloat(
-                              Math.min(
-                                ...relatedProduct.variants.map(
-                                  (v) => v.price || 0
-                                )
+                          ? `₦${Math.min(
+                              ...relatedProduct.variants.map(
+                                (v) => Number(v.price) || 0
                               )
                             ).toLocaleString()}`
-                          : `₦${parseFloat(
-                              relatedProduct.price || 0
-                            ).toLocaleString()}`}
+                          : `₦${Number(relatedProduct.price || 0).toLocaleString()}`}
                       </span>
                       <span className="text-xs sm:text-sm text-green-600">
                         View Details

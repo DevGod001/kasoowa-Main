@@ -5,6 +5,19 @@ import { useProducts } from '../../contexts/ProductContext';
 const ProductList = ({ onEdit, onDelete }) => {
   const { products } = useProducts(); // Use the context instead of local state
 
+  // Helper function to get the correct image URL
+  const getImageUrl = (url) => {
+    if (!url) return "/api/placeholder/400/400";
+    
+    // If URL already includes http or starts with /, use it as is
+    if (url.startsWith('http') || url.startsWith('/')) {
+      return url;
+    }
+    
+    // Otherwise, add the uploads path
+    return `/uploads/${url}`;
+  };
+
   if (!products || products.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -41,8 +54,11 @@ const ProductList = ({ onEdit, onDelete }) => {
                     <div className="h-10 w-10 flex-shrink-0">
                       <img
                         className="h-10 w-10 rounded-full object-cover"
-                        src={product.imageUrl || "/api/placeholder/400/400"}
+                        src={getImageUrl(product.image_url || product.imageUrl)}
                         alt={product.title}
+                        onError={(e) => {
+                          e.target.src = "/api/placeholder/40/40";
+                        }}
                       />
                     </div>
                     <div className="ml-4">

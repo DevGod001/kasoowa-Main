@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // Create an axios instance with common configuration
 const API = axios.create({
-  baseURL: 'http://localhost:3000/api', // Updated to point to your server
+  baseURL: 'https://kasoowa.com/api', 
   headers: {
     'Content-Type': 'application/json'
   }

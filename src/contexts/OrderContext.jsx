@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import API from '../services/api'; // Import the API service
 
 // Define the event name directly here for consistency
 const PRODUCTS_UPDATED_EVENT = 'kasoowaProductsUpdated';
@@ -11,11 +12,45 @@ export const OrderProvider = ({ children }) => {
     return savedOrders ? JSON.parse(savedOrders) : [];
   });
 
+  // Sync with localStorage whenever orders state changes
   useEffect(() => {
     localStorage.setItem('kasoowaOrders', JSON.stringify(orders));
   }, [orders]);
 
-  const createOrder = (orderData) => {
+  // Fetch orders from backend on mount (if available)
+  useEffect(() => {
+    const fetchOrdersFromBackend = async () => {
+      try {
+        // Get user identifier for filtering
+        const userIdentifier = localStorage.getItem('userIdentifier');
+        const token = localStorage.getItem('kasoowaAuthToken');
+        
+        // Only fetch if we have an identifier and token
+        if (userIdentifier && token) {
+          const response = await API.get(`/api/orders/identifier/${userIdentifier}`);
+          if (response.data && Array.isArray(response.data)) {
+            // Update state with backend data
+            setOrders(response.data);
+            
+            // Also sync to localStorage
+            localStorage.setItem('kasoowaOrders', JSON.stringify(response.data));
+            console.log("Orders fetched from backend:", response.data.length);
+          }
+        }
+      } catch (error) {
+        console.warn('Could not fetch orders from backend:', error);
+        // No need to show error - we'll use localStorage data as fallback
+      }
+    };
+
+    fetchOrdersFromBackend();
+    
+    // Setup sync interval (every 30 seconds)
+    const intervalId = setInterval(fetchOrdersFromBackend, 30000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const createOrder = async (orderData) => {
     console.log("STEP 1: Order creation started with data:", orderData);
     
     // Group items by vendor
@@ -112,7 +147,7 @@ export const OrderProvider = ({ children }) => {
       orderIds.push(vendorOrder.id);
     });
 
-    // Update product stock quantities
+    // First update product stock quantities
     if (orderData.items && orderData.items.length > 0) {
       console.log("STEP 5: Order has items:", orderData.items);
       
@@ -231,6 +266,23 @@ export const OrderProvider = ({ children }) => {
     } else {
       console.log("STEP 5-ERROR: Order has no items");
     }
+
+    // Now try to save orders to backend if possible
+    try {
+      // Send orders to the backend API
+      const response = await API.post('/api/orders/batch', { orders: newOrders });
+      console.log("Orders saved to backend:", response.data);
+      
+      // Use order IDs from backend if available
+      const serverOrderIds = response.data.orders?.map(order => order.id);
+      if (serverOrderIds && serverOrderIds.length > 0) {
+        orderIds.length = 0; // Clear existing IDs
+        orderIds.push(...serverOrderIds); // Add server-generated IDs
+      }
+    } catch (error) {
+      console.warn('Unable to save orders to backend, using localStorage only:', error);
+      // Continue with local storage only approach - don't exit the function
+    }
     
     // Add all the new orders to the orders state
     setOrders(prevOrders => {
@@ -272,15 +324,27 @@ export const OrderProvider = ({ children }) => {
     );
   };
 
-  const updateOrderStatus = (orderId, status) => {
+  const updateOrderStatus = async (orderId, status) => {
+    // First update in local state
     setOrders(prevOrders => 
       prevOrders.map(order => 
         order.id === orderId ? { ...order, status } : order
       )
     );
+
+    // Try to update in backend
+    try {
+      await API.put(`/api/orders/${orderId}/status`, { status });
+      console.log(`Order ${orderId} status updated in backend to ${status}`);
+    } catch (error) {
+      console.warn(`Could not update order status in backend:`, error);
+      // No need to show error to user or modify local state
+      // We've already updated local state above
+    }
   };
 
-  const updateOrderPickupSchedule = (orderId, pickupData) => {
+  const updateOrderPickupSchedule = async (orderId, pickupData) => {
+    // First update in local state
     setOrders(prevOrders =>
       prevOrders.map(order =>
         order.id === orderId
@@ -294,9 +358,19 @@ export const OrderProvider = ({ children }) => {
           : order
       )
     );
+
+    // Try to update in backend
+    try {
+      await API.put(`/api/orders/${orderId}/pickup-schedule`, pickupData);
+      console.log(`Order ${orderId} pickup schedule updated in backend`);
+    } catch (error) {
+      console.warn(`Could not update pickup schedule in backend:`, error);
+      // No need to show error to user or modify local state
+    }
   };
 
-  const updateDeliveryStatus = (orderId, deliveryStatus) => {
+  const updateDeliveryStatus = async (orderId, deliveryStatus) => {
+    // First update in local state
     setOrders(prevOrders =>
       prevOrders.map(order =>
         order.id === orderId
@@ -308,9 +382,19 @@ export const OrderProvider = ({ children }) => {
           : order
       )
     );
+
+    // Try to update in backend
+    try {
+      await API.put(`/api/orders/${orderId}/delivery-status`, { deliveryStatus });
+      console.log(`Order ${orderId} delivery status updated in backend`);
+    } catch (error) {
+      console.warn(`Could not update delivery status in backend:`, error);
+      // Continue with local state updates
+    }
   };
 
-  const updateDeliveryAddress = (orderId, addressData) => {
+  const updateDeliveryAddress = async (orderId, addressData) => {
+    // First update in local state
     setOrders(prevOrders =>
       prevOrders.map(order =>
         order.id === orderId
@@ -325,9 +409,19 @@ export const OrderProvider = ({ children }) => {
           : order
       )
     );
+
+    // Try to update in backend
+    try {
+      await API.put(`/api/orders/${orderId}/delivery-address`, addressData);
+      console.log(`Order ${orderId} delivery address updated in backend`);
+    } catch (error) {
+      console.warn(`Could not update delivery address in backend:`, error);
+      // Continue with local state updates
+    }
   };
 
-  const cancelOrderPickupSchedule = (orderId) => {
+  const cancelOrderPickupSchedule = async (orderId) => {
+    // First update in local state
     setOrders(prevOrders =>
       prevOrders.map(order =>
         order.id === orderId
@@ -341,9 +435,19 @@ export const OrderProvider = ({ children }) => {
           : order
       )
     );
+
+    // Try to update in backend
+    try {
+      await API.put(`/api/orders/${orderId}/cancel-pickup`);
+      console.log(`Order ${orderId} pickup canceled in backend`);
+    } catch (error) {
+      console.warn(`Could not cancel pickup in backend:`, error);
+      // Continue with local state updates
+    }
   };
 
-  const updatePaymentStatus = (orderId, paymentData) => {
+  const updatePaymentStatus = async (orderId, paymentData) => {
+    // First update in local state
     setOrders(prevOrders =>
       prevOrders.map(order =>
         order.id === orderId
@@ -357,26 +461,47 @@ export const OrderProvider = ({ children }) => {
           : order
       )
     );
-  };
 
-  const refreshOrders = () => {
-    const savedOrders = localStorage.getItem('kasoowaOrders');
-    if (savedOrders) {
-      setOrders(JSON.parse(savedOrders));
+    // Try to update in backend
+    try {
+      await API.put(`/api/orders/${orderId}/payment-status`, paymentData);
+      console.log(`Order ${orderId} payment status updated in backend`);
+    } catch (error) {
+      console.warn(`Could not update payment status in backend:`, error);
+      // Continue with local state updates
     }
   };
 
-  // Subscribe to storage events for cross-tab synchronization
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === 'kasoowaOrders') {
-        refreshOrders();
+  const refreshOrders = async () => {
+    try {
+      // Get user identifier for filtering
+      const userIdentifier = localStorage.getItem('userIdentifier');
+      
+      if (!userIdentifier) {
+        // No authenticated user, load empty orders
+        return;
       }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+      
+      try {
+        const response = await API.get(`/api/orders/identifier/${userIdentifier}`);
+        if (response.data && Array.isArray(response.data)) {
+          // Update state with backend data
+          setOrders(response.data);
+          console.log("Orders refreshed from backend:", response.data.length);
+        }
+      } catch (apiError) {
+        console.warn('Could not refresh orders from backend:', apiError);
+        
+        // Try to load from localStorage as fallback
+        const savedOrders = localStorage.getItem('kasoowaOrders');
+        if (savedOrders) {
+          setOrders(JSON.parse(savedOrders));
+        }
+      }
+    } catch (error) {
+      console.error('Error in refresh orders:', error);
+    }
+  };
 
   const calculateDeliveryFee = (state, city) => {
     // Base delivery fees by state
