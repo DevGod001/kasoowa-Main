@@ -4,6 +4,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { SHA256 } from "crypto-js";
+import { Eye, EyeOff } from "lucide-react";
 
 import {
   countries,
@@ -26,6 +27,7 @@ const validateStoreSlug = async (slug) => {
     "store",
     "stores",
     "shop",
+    "password",
     "marketplace",
   ];
 
@@ -51,6 +53,7 @@ const VendorRegistration = ({ onClose }) => {
     password: "",
   });
 
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     // Personal Information
     firstName: "",
@@ -428,7 +431,7 @@ const VendorRegistration = ({ onClose }) => {
             </div>
             <div className="relative">
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 placeholder="Password (min 8 characters)"
                 value={formData.password}
                 onChange={(e) =>
@@ -440,6 +443,17 @@ const VendorRegistration = ({ onClose }) => {
                 required
                 minLength={8}
               />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5 text-gray-400" />
+                ) : (
+                  <Eye className="h-5 w-5 text-gray-400" />
+                )}
+              </button>
               {errors.password && (
                 <div className="mt-1 text-sm text-red-600">
                   {errors.password}
@@ -453,21 +467,40 @@ const VendorRegistration = ({ onClose }) => {
                   </div>
                 )}
             </div>
-            <input
-              type="password"
-              placeholder="Confirm Password"
-              value={formData.confirmPassword}
-              onChange={(e) =>
-                setFormData({ ...formData, confirmPassword: e.target.value })
-              }
-              className={`w-full p-2 border rounded ${
-                formData.password !== formData.confirmPassword &&
-                formData.confirmPassword
-                  ? "border-red-300"
-                  : "border-gray-300"
-              }`}
-              required
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Confirm Password"
+                value={formData.confirmPassword}
+                onChange={(e) =>
+                  setFormData({ ...formData, confirmPassword: e.target.value })
+                }
+                className={`w-full p-2 border rounded ${
+                  formData.password !== formData.confirmPassword &&
+                  formData.confirmPassword
+                    ? "border-red-300"
+                    : "border-gray-300"
+                }`}
+                required
+              />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5 text-gray-400" />
+                ) : (
+                  <Eye className="h-5 w-5 text-gray-400" />
+                )}
+              </button>
+              {formData.password !== formData.confirmPassword &&
+                formData.confirmPassword && (
+                  <div className="mt-1 text-xs text-red-600">
+                    Passwords don't match
+                  </div>
+                )}
+            </div>
           </div>
         </div>
 

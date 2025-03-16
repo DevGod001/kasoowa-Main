@@ -327,6 +327,13 @@ function HomePage() {
                   >
                     My Orders
                   </Link>
+                  <Link
+                    to="/vendor/auth"
+                    className="block text-gray-600 hover:text-gray-900"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Sell on Kasoowa
+                  </Link>
                   <button
                     onClick={() => {
                       handleSchedulePickup();
@@ -450,10 +457,7 @@ function HomePage() {
                     </Link>
                   </li>
                   <li>
-                    <Link
-                      to="/affiliate/auth"
-                      className="hover:text-green-600"
-                    >
+                    <Link to="/affiliate/auth" className="hover:text-green-600">
                       Become an Affiliate
                     </Link>
                   </li>
